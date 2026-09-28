@@ -1158,7 +1158,7 @@ canvas.addEventListener('pointermove', e => {
     else if (p.mode === 'zoom') user.zoom = user.zoomTo = clamp(user.zoom * Math.exp(dy * 0.005), 0.25, 4);
     else {
       user.yaw -= dx * 0.006;
-      user.pitch = clamp(user.pitch + dy * 0.006, -1.3, 1.3);
+      user.pitch += dy * 0.006;               // limited in applyCam, where the camera's own tilt is known
     }
   }
   p.x = e.clientX; p.y = e.clientY;
@@ -1177,6 +1177,10 @@ canvas.addEventListener('dblclick', resetView);
 function applyCam(cam, cObj, withUser) {
   const off = cam.pos.clone().sub(cam.target), up = cam.up.clone().normalize();
   if (withUser) {
+    // Limit the TOTAL elevation (the chapter's own camera tilt plus the user's drag) to ±85°.
+    // Past 90° the camera turns over and north and south swap on screen.
+    const e0 = Math.asin(clamp(off.clone().normalize().dot(up), -1, 1)), lim = 85 * D2R;
+    user.pitch = clamp(user.pitch, -lim - e0, lim - e0);
     off.applyAxisAngle(up, user.yaw);
     const right = off.clone().cross(up);
     if (right.lengthSq() > 1e-10) off.applyAxisAngle(right.normalize(), user.pitch);
