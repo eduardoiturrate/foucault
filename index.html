@@ -335,7 +335,7 @@ function bobAt(ch, t) {
   const ta = Math.max(t0, t - 0.05), tb = t + 0.05;
   const rate = (ch.P(tb) - ch.P(ta)) / (tb - ta);
   const w = Math.sqrt(W0 * W0 + rate * rate);
-  const eps = clamp(rate / w, -0.12, 0.12);
+  const eps = rate / w;   // exact; a cap here turns the star into petals at high Earth speeds
   // "rest": released from rest (relative to the floor) at the end of the swing. Gives a star.
   // "push": pushed from the centre. In space the swing is a straight line; gives petals.
   const tau = t - t0, push = sw.start === 'push';
@@ -976,7 +976,7 @@ const FILM_TOTAL = CH.reduce((s, c) => s + c.dur, 0);
 const CH_START = []; { let s = 0; for (const c of CH) { CH_START.push(s); s += c.dur; } }
 
 // ---------- chapter 8: the sandbox ----------
-const SB = { lat: PARIS, lon: PARIS_LON, start: 'rest', hps: 1, view: 'floor', split: false, unroll: 0, t: 0, Tb: 0, tb: 0 };
+const SB = { lat: PARIS, lon: PARIS_LON, start: 'rest', swingT0: 0, psi0: 90, hps: 1, view: 'floor', split: false, unroll: 0, t: 0, Tb: 0, tb: 0 };
 const SANDBOX = {
   title: 'Try it yourself', short: 'Try it', sandbox: true,
   beats: [{ text: 'Now try it yourself. Change the latitude, the speed of the Earth, and the view. Every number in the panel at the top left follows your choices.' }],
@@ -984,7 +984,7 @@ const SANDBOX = {
   lat: () => SB.lat,
   lon: () => SB.lon,
   T: t => SB.Tb + SB.hps * (t - SB.tb),
-  swing: () => ({ t0: 0, psi0: 90, start: SB.start }),
+  swing: () => ({ t0: SB.swingT0, psi0: SB.psi0, start: SB.start }),
   P(t) { return TAU / SID * Math.sin(SB.lat * D2R) * this.T(t); },
   frame(t, B) {
     const sc = 1, s = SB.lat < 0 ? -1 : 1;
@@ -1113,7 +1113,7 @@ window.addEventListener('keydown', e => {
 });
 
 // sandbox controls
-function sbRestart() { SB.t = 0; SB.Tb = 0; SB.tb = 0; }
+function sbRestart() { SB.t = 0; SB.Tb = 0; SB.tb = 0; SB.swingT0 = 0; SB.psi0 = 90; }
 function fmtLat(l) { return Math.abs(l) < 0.01 ? '0° (Equator)' : `${Math.abs(l).toFixed(2)}° ${l > 0 ? 'N' : 'S'}`; }
 function syncSandboxUI() {
   $('sbLat').value = SB.lat; $('sbLatOut').textContent = fmtLat(SB.lat);
@@ -1128,7 +1128,12 @@ function syncSandboxUI() {
 }
 $('sbLat').addEventListener('input', e => { SB.lat = parseFloat(e.target.value); sbRestart(); syncSandboxUI(); });
 $('sbSpeed').addEventListener('input', e => {
-  const T = SANDBOX.T(SB.t); SB.hps = parseFloat(e.target.value); SB.Tb = T; SB.tb = SB.t; syncSandboxUI();
+  // The closed-form swing assumes one Earth speed since the release. So a new speed means a
+  // new release, along the line the swing has at this moment. The Earth's clock keeps running.
+  const T = SANDBOX.T(SB.t), a = bobAt(SANDBOX, SB.t).a;
+  SB.hps = parseFloat(e.target.value); SB.Tb = T; SB.tb = SB.t;
+  SB.swingT0 = SB.t; SB.psi0 = a * R2D;
+  syncSandboxUI();
 });
 $('sbPresets').addEventListener('click', e => { const d = e.target.dataset.lat; if (d == null) return; SB.lat = parseFloat(d); SB.lon = parseFloat(e.target.dataset.lon); sbRestart(); syncSandboxUI(); });
 $('sbViews').addEventListener('click', e => { const v = e.target.dataset.view; if (!v) return; SB.view = v; resetView(); syncSandboxUI(); });
