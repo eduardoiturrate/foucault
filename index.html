@@ -1,0 +1,1409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Foucault Between the Poles</title>
+<meta name="description" content="A 3D film that explains why a Foucault pendulum turns at 360° × sin(latitude) per day.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fraunces:opsz,wght@9..144,560&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  /* Single dark look on purpose: the film takes place in space. */
+  :root {
+    --bg: #05080f;
+    --panel: rgba(11, 15, 26, 0.86);
+    --panel-solid: #0b0f1a;
+    --line: rgba(150, 168, 200, 0.2);
+    --text: #e8ebf2;
+    --muted: #97a1b6;
+    --brass: #dcaa4b;
+    --brass-soft: rgba(220, 170, 75, 0.16);
+    --vert: #5ec8ea;
+    --horiz: #f186a6;
+    --ghost: #ff5d50;
+    --push: #ff9d4d;
+    --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --sans: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    --serif: "Fraunces", Georgia, "Times New Roman", serif;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden; background: var(--bg); color: var(--text);
+    font: 16px/1.5 var(--sans);
+  }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  #c:active { cursor: grabbing; }
+  button, select, input { font: inherit; color: inherit; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  /* ---------- top left: title and numbers ---------- */
+  #hud {
+    position: fixed; left: 16px; top: calc(14px + env(safe-area-inset-top, 0px));
+    display: grid; gap: 10px; width: min(330px, calc(100vw - 32px)); pointer-events: none;
+  }
+  .eyebrow { font: 600 11px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--brass); }
+  h1 { font: 560 clamp(22px, 2.6vw, 30px)/1.15 var(--serif); margin: 6px 0 0; text-wrap: balance; }
+  #readout {
+    margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; column-gap: 14px; row-gap: 2px;
+    font: 12.5px/1.5 var(--mono); font-variant-numeric: tabular-nums; backdrop-filter: blur(6px);
+  }
+  #readout dt { color: var(--muted); }
+  #readout dd { margin: 0; text-align: right; }
+  #readout .note { grid-column: 1 / -1; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--muted); font: 11.5px/1.45 var(--sans); }
+
+  /* ---------- film title, top centre ---------- */
+  #filmTitle {
+    position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+    width: min(560px, calc(100vw - 2 * 360px)); text-align: center; pointer-events: none;
+    text-shadow: 0 1px 12px rgba(0, 0, 0, .8);
+  }
+  #filmTitle h2 { margin: 0; font: 560 clamp(24px, 2.6vw, 34px)/1.1 var(--serif); letter-spacing: .005em; text-wrap: balance; }
+  #filmTitle p { margin: 6px 0 0; font-size: 14px; color: var(--muted); text-wrap: balance; }
+  /* Hidden when the free space between the side panels is too narrow for it
+     (720 px of panels + 420 px of title), and always in "Try it", where the right side is full. */
+  body.sandbox #filmTitle { display: none; }
+  @media (max-width: 1140px) { #filmTitle { display: none; } }
+
+  /* ---------- inset view ---------- */
+  #insetFrame {
+    position: fixed; right: 16px; top: calc(14px + env(safe-area-inset-top, 0px));
+    width: min(30vw, 320px); aspect-ratio: 1; max-width: 100%;
+    border: 1px solid rgba(220,170,75,.55); border-radius: 6px; pointer-events: none;
+  }
+  #insetFrame span {
+    position: absolute; left: 8px; top: 6px; font: 600 11px/1 var(--mono); letter-spacing: .1em;
+    text-transform: uppercase; color: var(--brass); background: rgba(5,8,15,.7); padding: 4px 6px; border-radius: 3px;
+  }
+
+  /* ---------- labels in the 3D scene ---------- */
+  #tags { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .tag {
+    position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 13px/1.2 var(--mono);
+    padding: 3px 7px; border-radius: 4px; background: rgba(5,8,15,.72); color: var(--text);
+  }
+  .tag.vert { color: var(--vert); } .tag.horiz { color: var(--horiz); }
+  .tag.ghost { color: var(--ghost); } .tag.brass { color: var(--brass); }
+  .tag.big { font-size: 16px; padding: 5px 9px; }
+
+  /* ---------- bottom: caption and transport ---------- */
+  #bottom {
+    position: fixed; left: 0; right: 0; bottom: 0; padding: 0 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    display: grid; gap: 10px; pointer-events: none;
+  }
+  #bottom > * { pointer-events: auto; }
+  #caption {
+    width: min(330px, 100%); box-sizing: border-box; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px 13px; backdrop-filter: blur(6px); display: grid; gap: 6px;
+  }
+  #capMeta { font: 600 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  #capText { margin: 0; font-size: 17px; line-height: 1.5; min-height: 4.5em; }
+  #capText.fade { animation: capIn .35s ease-out; }
+  @keyframes capIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { #capText.fade { animation: none; } }
+
+  #chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 5px 12px 5px 6px;
+    display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font-size: 14px; backdrop-filter: blur(6px);
+  }
+  .chip b { font: 600 11px/1 var(--mono); width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: rgba(150,168,200,.14); }
+  .chip:hover { border-color: rgba(220,170,75,.6); }
+  .chip.on { border-color: var(--brass); color: var(--brass); }
+  .chip.on b { background: var(--brass); color: #1a1204; }
+
+  #transport {
+    display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 10px; flex-wrap: wrap; backdrop-filter: blur(6px);
+  }
+  .tbtn { border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 14px; }
+  .tbtn:hover { border-color: rgba(220,170,75,.6); }
+  #play { background: var(--brass); color: #1a1204; border-color: var(--brass); font-weight: 700; min-width: 96px; }
+  #scrubWrap { flex: 1 1 260px; position: relative; display: flex; align-items: center; min-width: 180px; }
+  #scrub { width: 100%; accent-color: var(--brass); margin: 0; position: relative; z-index: 1; }
+  #ticks { position: absolute; left: 0; right: 0; top: 50%; height: 14px; transform: translateY(-50%); pointer-events: none; }
+  #ticks i { position: absolute; top: 0; width: 1px; height: 14px; background: rgba(150,168,200,.45); }
+  #clock { font: 12.5px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); min-width: 92px; text-align: right; }
+  #speed { background: var(--panel-solid); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; font-size: 14px; }
+  .hint { font-size: 12.5px; color: var(--muted); }
+
+  /* ---------- sandbox controls ---------- */
+  #sandbox {
+    position: fixed; right: 16px; top: calc(14px + env(safe-area-inset-top, 0px)); width: min(310px, calc(100vw - 32px));
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 14px;
+    backdrop-filter: blur(6px); max-height: calc(100% - 250px); overflow-y: auto;
+  }
+  #sandbox h2 { margin: 0; font: 560 19px/1.2 var(--serif); }
+  .field { display: grid; gap: 6px; }
+  .field label, .field .lbl { font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+  .field output { font: 600 13px/1.2 var(--mono); color: var(--text); }
+  .field input[type=range] { width: 100%; accent-color: var(--brass); margin: 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg { border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 5px 9px; cursor: pointer; font-size: 13px; }
+  .seg.on { background: var(--brass-soft); border-color: var(--brass); color: var(--brass); }
+  .check { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+  .check input { accent-color: var(--brass); width: 16px; height: 16px; }
+  #coneMsg { font-size: 13px; color: var(--push); margin: 0; }
+  body.sandbox #insetFrame { right: calc(16px + min(310px, calc(100vw - 32px)) + 12px); width: min(22vw, 240px); }
+
+  @media (max-width: 760px) {
+    #readout { font-size: 11px; padding: 8px 10px; }
+    #readout .note { display: none; }
+    #insetFrame { width: 34vw; }
+    #caption { padding: 10px 12px; }
+    .chip { padding: 4px 6px; font-size: 0; gap: 0; }
+    .chip b { font-size: 11px; }
+    .hint { display: none; }
+    #sandbox { top: auto; bottom: 170px; max-height: 42vh; }
+    body.sandbox #hud { display: none; }
+    body.sandbox #insetFrame { right: 16px; width: 34vw; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="c" aria-label="3D animation of a Foucault pendulum on the Earth"></canvas>
+<div id="tags"></div>
+<header id="filmTitle">
+  <h2>Foucault Between the Poles</h2>
+  <p>Why the swing turns 360° × sin(latitude) per day</p>
+</header>
+<div id="insetFrame" hidden><span id="insetTitle">Seen from the floor</span></div>
+
+<div id="hud">
+  <div>
+    <div class="eyebrow" id="chNum">Chapter 1 of 8</div>
+    <h1 id="chTitle">The question</h1>
+  </div>
+  <dl id="readout">
+    <dt>Latitude φ</dt><dd id="rLat">–</dd>
+    <dt>sin φ</dt><dd id="rSin">–</dd>
+    <dt>Earth has turned for</dt><dd id="rT">–</dd>
+    <dt>Swing turned vs floor</dt><dd id="rTurn">–</dd>
+    <dt>One full turn takes</dt><dd id="rPer">–</dd>
+    <dt>Time scale</dt><dd id="rScale">–</dd>
+    <p class="note">Not to scale. The pendulum is drawn far larger than real, and it swings far faster than real compared with the Earth's turn.</p>
+  </dl>
+</div>
+
+<aside id="sandbox" hidden>
+  <h2>Try it yourself</h2>
+  <div class="field">
+    <label for="sbLat">Latitude <output id="sbLatOut">48.85° N</output></label>
+    <input id="sbLat" type="range" min="-90" max="90" step="0.25" value="48.85">
+    <div class="row" id="sbPresets">
+      <button class="seg" data-lat="-90" data-lon="0">South Pole</button>
+      <button class="seg" data-lat="-33.87" data-lon="151.21">Sydney</button>
+      <button class="seg" data-lat="0" data-lon="-78.47">Equator</button>
+      <button class="seg" data-lat="48.85" data-lon="2.35">Paris</button>
+      <button class="seg" data-lat="90" data-lon="0">North Pole</button>
+    </div>
+  </div>
+  <div class="field">
+    <label for="sbSpeed">Earth hours per second <output id="sbSpeedOut">1.0 h</output></label>
+    <input id="sbSpeed" type="range" min="0.25" max="6" step="0.25" value="1">
+  </div>
+  <div class="field">
+    <span class="lbl">View</span>
+    <div class="row" id="sbViews">
+      <button class="seg on" data-view="floor">Floor</button>
+      <button class="seg" data-view="top">From above</button>
+      <button class="seg" data-view="space">From space</button>
+      <button class="seg" data-view="cone">Cone</button>
+    </div>
+  </div>
+  <div class="field" id="sbUnrollField" hidden>
+    <label for="sbUnroll">Unroll the cone <output id="sbUnrollOut">0 %</output></label>
+    <input id="sbUnroll" type="range" min="0" max="1" step="0.01" value="0">
+    <p id="coneMsg" hidden>The cone view works up to 89° from the Equator. Closer to the pole the cone is too small to show.</p>
+  </div>
+  <div class="field">
+    <span class="lbl">How the swing starts</span>
+    <div class="row" id="sbStarts">
+      <button class="seg on" data-start="rest">Released from rest</button>
+      <button class="seg" data-start="push">Pushed from the centre</button>
+    </div>
+  </div>
+  <label class="check"><input id="sbSplit" type="checkbox"> Show Earth's spin split into two parts</label>
+  <button class="tbtn" id="sbRestart">Restart the swing</button>
+</aside>
+
+<div id="bottom">
+  <div id="caption" aria-live="polite">
+    <div id="capMeta">Step 1 of 6</div>
+    <p id="capText"></p>
+  </div>
+  <nav id="chips" aria-label="Chapters"></nav>
+  <div id="transport">
+    <button class="tbtn" id="prev" title="Previous step (Left arrow)">◀ Back</button>
+    <button class="tbtn" id="play" title="Play or pause (Space)">▶ Play</button>
+    <button class="tbtn" id="next" title="Next step (Right arrow)">Next ▶</button>
+    <div id="scrubWrap"><div id="ticks"></div><input id="scrub" type="range" min="0" max="100" step="0.01" value="0" aria-label="Position in the film"></div>
+    <span id="clock">0:00 / 0:00</span>
+    <select id="speed" aria-label="Playback speed">
+      <option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
+    </select>
+    <button class="tbtn" id="voice" title="Read the captions aloud">Voice: off</button>
+    <span class="hint">Drag: rotate · right-drag: move · scroll: zoom · double-click: reset</span>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="geo-data.js"></script>
+<script>
+(function () {
+'use strict';
+
+// ======================================================================
+// Constants
+// ======================================================================
+const D2R = Math.PI / 180, R2D = 180 / Math.PI, TAU = Math.PI * 2;
+const SID = 23.934;               // sidereal day in hours: one turn of the Earth relative to the stars
+const R = 3;                      // Earth radius in scene units
+const H = 1.0;                    // pivot height above the floor (pendulum units, before scaling)
+const LW = 0.94;                  // wire length
+const AMP = 0.3;                  // swing amplitude on the floor
+const W0 = TAU / 2.4;             // swing angular frequency on screen (2.4 s per swing)
+const PARIS = 48.85, PARIS_LON = 2.35;   // Panthéon, Paris
+const sinP = Math.sin(PARIS * D2R);
+const PARIS_TURN = (360 * sinP).toFixed(0);        // degrees per sidereal day
+const PARIS_PERIOD = (SID / sinP).toFixed(1);      // hours per full turn
+
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const smooth = k => { k = clamp(k, 0, 1); return k * k * (3 - 2 * k); };
+const seg = (t, a, b) => smooth((t - a) / (b - a));
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const Y_AXIS = V(0, 1, 0), Z_AXIS = V(0, 0, 1);
+
+// ======================================================================
+// Geometry of a place on the Earth
+// Earth spins about +Y. Longitude increases toward +X from +Z.
+// Site frame: x = east, y = up, z = south (so north is -z).
+// ======================================================================
+function basis(latDeg, theta) {
+  const p = latDeg * D2R, lw = theta;
+  const cp = Math.cos(p), sp = Math.sin(p), cl = Math.cos(lw), sl = Math.sin(lw);
+  const u = V(cp * sl, sp, cp * cl);
+  const e = V(cl, 0, -sl);
+  const n = V(-sp * sl, cp, -sp * cl);
+  const s = n.clone().negate();
+  const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(e, u, s));
+  return { pos: u.clone().multiplyScalar(R), u, e, n, s, q, lat: latDeg };
+}
+function loc(B, sc, x, y, z) {
+  return B.pos.clone()
+    .addScaledVector(B.e, x * sc).addScaledVector(B.u, y * sc).addScaledVector(B.s, z * sc);
+}
+function siteCam(B, sc, p, t, top) {
+  return { pos: loc(B, sc, p[0], p[1], p[2]), target: loc(B, sc, t[0], t[1], t[2]), up: (top ? B.n : B.u).clone() };
+}
+function worldCam(p, t, up) { return { pos: V(p[0], p[1], p[2]), target: V(t[0], t[1], t[2]), up: up ? V(up[0], up[1], up[2]) : Y_AXIS.clone() }; }
+function mixCam(a, b, k) {
+  if (k <= 0) return a; if (k >= 1) return b;
+  return { pos: a.pos.clone().lerp(b.pos, k), target: a.target.clone().lerp(b.target, k), up: a.up.clone().lerp(b.up, k).normalize() };
+}
+
+// ======================================================================
+// The pendulum. Closed-form solution of the linear Foucault equations
+//   x'' = -w0² x + 2Ωz y',   y'' = -w0² y - 2Ωz x'   (x east, y north)
+// released from rest. P(t) is the total clockwise turn of the swing
+// relative to the floor: P = (2π / sidereal day) × ∫ sin(lat) dT.
+// ======================================================================
+function makeP(lat, T, dur) {
+  const dt = 1 / 60, n = Math.ceil((dur + 2) / dt) + 2, tab = new Float64Array(n);
+  let prevT = T(0);
+  for (let i = 1; i < n; i++) {
+    const t = i * dt, Tt = T(t);
+    tab[i] = tab[i - 1] + TAU / SID * Math.sin(lat(t - dt / 2) * D2R) * (Tt - prevT);
+    prevT = Tt;
+  }
+  return function (t) {
+    if (t <= 0) return 0;
+    const x = t / dt, i = Math.floor(x);
+    if (i >= n - 1) return tab[n - 1];
+    return tab[i] + (tab[i + 1] - tab[i]) * (x - i);
+  };
+}
+function bobAt(ch, t) {
+  const sw = ch.swing(t), t0 = sw.t0;
+  const P0 = ch.P(t0), Pt = ch.P(t);
+  const a = sw.psi0 * D2R - (Pt - P0);
+  const ta = Math.max(t0, t - 0.05), tb = t + 0.05;
+  const rate = (ch.P(tb) - ch.P(ta)) / (tb - ta);
+  const w = Math.sqrt(W0 * W0 + rate * rate);
+  const eps = clamp(rate / w, -0.12, 0.12);
+  // "rest": released from rest (relative to the floor) at the end of the swing. Gives a star.
+  // "push": pushed from the centre. In space the swing is a straight line; gives petals.
+  const tau = t - t0, push = sw.start === 'push';
+  const c = push ? Math.sin(w * tau) : Math.cos(w * tau), s = push ? 0 : eps * Math.sin(w * tau);
+  const ca = Math.cos(a), sa = Math.sin(a);
+  return { x: AMP * (ca * c - sa * s), y: AMP * (sa * c + ca * s), a, turned: Pt - P0, t0 };
+}
+
+// ======================================================================
+// Textures
+// ======================================================================
+function mulberry(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hash3(x, y, z) { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); }
+function noise3(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+  const c = (a, b, d) => hash3(xi + a, yi + b, zi + d);
+  const x00 = lerp(c(0,0,0), c(1,0,0), u), x10 = lerp(c(0,1,0), c(1,1,0), u);
+  const x01 = lerp(c(0,0,1), c(1,0,1), u), x11 = lerp(c(0,1,1), c(1,1,1), u);
+  return lerp(lerp(x00, x10, v), lerp(x01, x11, v), w);
+}
+// Real coastlines and borders (Natural Earth 1:50m, loaded from geo-data.js).
+// The texture is aligned so that geographic longitude L sits at mesh azimuth L.
+function decodePaths(b64) {
+  const bin = atob(b64), n = bin.length >> 1, paths = [];
+  let cur = [];
+  for (let i = 0; i < n; i += 2) {
+    const x = (bin.charCodeAt(2 * i) | bin.charCodeAt(2 * i + 1) << 8) << 16 >> 16;
+    const y = (bin.charCodeAt(2 * i + 2) | bin.charCodeAt(2 * i + 3) << 8) << 16 >> 16;
+    if (x === -32768) { if (cur.length) paths.push(cur); cur = []; } else cur.push(x / 180, y / 180);
+  }
+  return paths;
+}
+function earthTexture() {
+  const W = 4096, Hh = 2048;
+  // First draw the map with longitude -180 at the left edge, then shift it into place.
+  const m = document.createElement('canvas'); m.width = W; m.height = Hh;
+  const g = m.getContext('2d');
+  const X = lon => (lon + 180) / 360 * W, Yp = lat => (90 - lat) / 180 * Hh;
+  const ocean = g.createLinearGradient(0, 0, 0, Hh);
+  ocean.addColorStop(0, '#0b2440'); ocean.addColorStop(0.5, '#15406b'); ocean.addColorStop(1, '#0b2440');
+  g.fillStyle = ocean; g.fillRect(0, 0, W, Hh);
+  // A shape that crosses the 180° meridian jumps from +180 to -180 in longitude.
+  // Make each shape's longitudes continuous, then draw it at -360°, 0° and +360°
+  // so the part outside the map edge still appears on the other side.
+  function unwrap(p) {
+    const q = [p[0], p[1]];
+    for (let i = 2; i < p.length; i += 2) {
+      let lon = p[i]; const prev = q[q.length - 2];
+      while (lon - prev > 180) lon -= 360;
+      while (lon - prev < -180) lon += 360;
+      q.push(lon, p[i + 1]);
+    }
+    return q;
+  }
+  function addPath(path, p, closed) {
+    const q = unwrap(p), turns = q[q.length - 2] - q[0];
+    // A ring that goes once around the globe (Antarctica) closes along the pole.
+    if (closed && Math.abs(turns) > 180) { const pole = q[1] < 0 ? -90 : 90; q.push(q[q.length - 2], pole, q[0], pole); }
+    for (const shift of [-360, 0, 360]) {
+      path.moveTo(X(q[0] + shift), Yp(q[1]));
+      for (let i = 2; i < q.length; i += 2) path.lineTo(X(q[i] + shift), Yp(q[i + 1]));
+      if (closed) path.closePath();
+    }
+  }
+  const land = new Path2D();
+  for (const p of decodePaths(GEO_LAND)) addPath(land, p, true);
+  // Land colour by latitude: ice near the poles, green in the middle, drier olive in the subtropics.
+  const lg = g.createLinearGradient(0, 0, 0, Hh);
+  const stops = [[90, '#dfe7ee'], [72, '#cdd8d6'], [62, '#6f8a68'], [45, '#4f7c4c'], [30, '#8c8a5a'], [18, '#7d8650'],
+                 [0, '#3f7a45'], [-18, '#6f8350'], [-30, '#8c8a5a'], [-45, '#56804f'], [-60, '#8fa3a0'], [-66, '#dfe7ee'], [-90, '#eef3f7']];
+  for (const [lat, col] of stops) lg.addColorStop((90 - lat) / 180, col);
+  g.fillStyle = lg; g.fill(land, 'evenodd');
+  // Soft relief: low-resolution noise, only on land.
+  const nw = 512, nh = 256, nc = document.createElement('canvas'); nc.width = nw; nc.height = nh;
+  const ng = nc.getContext('2d'), img = ng.createImageData(nw, nh);
+  for (let j = 0; j < nh; j++) {
+    const lat = (0.5 - (j + 0.5) / nh) * Math.PI;
+    for (let i = 0; i < nw; i++) {
+      const lon = (i + 0.5) / nw * TAU;
+      const px = Math.cos(lat) * Math.cos(lon), py = Math.sin(lat), pz = Math.cos(lat) * Math.sin(lon);
+      let f = 0, a = 0.5, fr = 4;
+      for (let o = 0; o < 4; o++) { f += a * noise3(px * fr + 11, py * fr + 3, pz * fr + 7); a *= 0.5; fr *= 2.2; }
+      const k = (j * nw + i) * 4, v = clamp((f - 0.47) * 2.2, -1, 1);
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = v > 0 ? 255 : 0; img.data[k + 3] = Math.abs(v) * 70;
+    }
+  }
+  ng.putImageData(img, 0, 0);
+  g.save(); g.clip(land, 'evenodd'); g.globalCompositeOperation = 'soft-light'; g.drawImage(nc, 0, 0, W, Hh); g.restore();
+  // Coastlines and country borders
+  g.lineJoin = 'round';
+  g.strokeStyle = 'rgba(210,232,255,0.45)'; g.lineWidth = 1.4; g.stroke(land);
+  const borders = new Path2D();
+  for (const p of decodePaths(GEO_BORDERS)) addPath(borders, p, false);
+  g.strokeStyle = 'rgba(255,240,205,0.42)'; g.lineWidth = 1.3; g.stroke(borders);
+  // Grid every 15°, Equator in gold
+  g.strokeStyle = 'rgba(205,222,255,0.16)'; g.lineWidth = 2;
+  for (let d = -75; d <= 75; d += 15) { if (d === 0) continue; g.beginPath(); g.moveTo(0, Yp(d)); g.lineTo(W, Yp(d)); g.stroke(); }
+  for (let d = -180; d < 180; d += 15) { g.beginPath(); g.moveTo(X(d), 0); g.lineTo(X(d), Hh); g.stroke(); }
+  g.strokeStyle = 'rgba(240,200,120,0.75)'; g.lineWidth = 5;
+  g.beginPath(); g.moveTo(0, Hh / 2); g.lineTo(W, Hh / 2); g.stroke();
+  // Three.js puts texture u = 0 at mesh azimuth -90°. Shift so longitude L lands at azimuth L.
+  const c = document.createElement('canvas'); c.width = W; c.height = Hh;
+  const cg = c.getContext('2d');
+  cg.drawImage(m, -W / 4, 0); cg.drawImage(m, W * 3 / 4, 0);
+  const tex = new THREE.CanvasTexture(c); tex.anisotropy = renderer.capabilities.getMaxAnisotropy(); return tex;
+}
+function floorTexture() {
+  const S = 1024, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'), cx = S / 2, r = S / 2 - 6;
+  const grad = g.createRadialGradient(cx, cx, 40, cx, cx, r);
+  grad.addColorStop(0, '#e6d6ad'); grad.addColorStop(1, '#c7b184');
+  g.fillStyle = grad; g.beginPath(); g.arc(cx, cx, r, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(70,48,18,.7)'; g.lineWidth = 8; g.beginPath(); g.arc(cx, cx, r - 4, 0, TAU); g.stroke();
+  g.lineWidth = 2; g.beginPath(); g.arc(cx, cx, r - 70, 0, TAU); g.stroke();
+  for (let d = 0; d < 360; d += 5) {
+    const a = d * D2R, len = d % 30 === 0 ? 46 : d % 10 === 0 ? 28 : 14;
+    g.lineWidth = d % 30 === 0 ? 4 : 2;
+    g.beginPath(); g.moveTo(cx + Math.sin(a) * (r - 8), cx - Math.cos(a) * (r - 8));
+    g.lineTo(cx + Math.sin(a) * (r - 8 - len), cx - Math.cos(a) * (r - 8 - len)); g.stroke();
+  }
+  g.strokeStyle = 'rgba(70,48,18,.28)'; g.lineWidth = 3; g.setLineDash([18, 14]);
+  g.beginPath(); g.moveTo(cx, cx - r + 150); g.lineTo(cx, cx + r - 150); g.moveTo(cx - r + 150, cx); g.lineTo(cx + r - 150, cx); g.stroke();
+  g.setLineDash([]);
+  g.font = '700 84px "Atkinson Hyperlegible", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const L = [['N', 0, '#a3241a'], ['E', 90, '#3b2a12'], ['S', 180, '#3b2a12'], ['W', 270, '#3b2a12']];
+  for (const [t, d, col] of L) { const a = d * D2R; g.fillStyle = col; g.fillText(t, cx + Math.sin(a) * (r - 120), cx - Math.cos(a) * (r - 120)); }
+  const tex = new THREE.CanvasTexture(c); tex.anisotropy = 8; return tex;
+}
+
+// ======================================================================
+// Scene
+// ======================================================================
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x04070d);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 600);
+const insetCam = new THREE.PerspectiveCamera(50, 1, 0.01, 600);
+
+scene.add(new THREE.AmbientLight(0x8a93ad, 0.62));
+const head = new THREE.DirectionalLight(0xffffff, 0.85); scene.add(head); scene.add(head.target);
+const fill = new THREE.DirectionalLight(0xfff1dc, 0.25); fill.position.set(6, 9, 7); scene.add(fill);
+
+// Stars, fixed in space
+(function makeStars() {
+  const rnd = mulberry(7);
+  function layer(n, size, opacity) {
+    const pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const z = rnd() * 2 - 1, a = rnd() * TAU, r = Math.sqrt(1 - z * z);
+      pos.set([r * Math.cos(a) * 250, z * 250, r * Math.sin(a) * 250], i * 3);
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xdfe6ff, size, sizeAttenuation: false, transparent: true, opacity, depthWrite: false })));
+  }
+  layer(2600, 1.3, 0.55); layer(420, 2.2, 0.85); layer(60, 3.2, 0.95);
+})();
+
+// Earth
+const earth = new THREE.Mesh(new THREE.SphereGeometry(R, 128, 80),
+  new THREE.MeshPhongMaterial({ map: earthTexture(), shininess: 14, specular: 0x1d2a3a }));
+scene.add(earth);
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(R * 1.035, 64, 40),
+  new THREE.MeshBasicMaterial({ color: 0x4d8fe0, transparent: true, opacity: 0.07, side: THREE.BackSide, depthWrite: false })));
+
+// Earth's axis
+const axisGroup = new THREE.Group(); scene.add(axisGroup);
+{
+  const g = new THREE.BufferGeometry().setFromPoints([V(0, -4.9, 0), V(0, 4.9, 0)]);
+  axisGroup.add(new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 })));
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.24, 16), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  tip.position.set(0, 4.95, 0); axisGroup.add(tip);
+}
+
+// Latitude circle
+const latCircle = (function () {
+  const n = 160, g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const l = new THREE.LineLoop(g, new THREE.LineBasicMaterial({ color: 0xdcaa4b, transparent: true, opacity: 0.8 }));
+  l.frustumCulled = false; l.userData = { n, lat: null }; scene.add(l); return l;
+})();
+function setLatCircle(lat) {
+  if (latCircle.userData.lat === lat) return;
+  latCircle.userData.lat = lat;
+  const p = latCircle.geometry.attributes.position, n = latCircle.userData.n;
+  const rr = R * Math.cos(lat * D2R) * 1.004, y = R * Math.sin(lat * D2R) * 1.004;
+  for (let i = 0; i < n; i++) { const a = i / n * TAU; p.setXYZ(i, rr * Math.sin(a), y, rr * Math.cos(a)); }
+  p.needsUpdate = true;
+}
+
+// Shared shapes
+const UNIT_CYL = new THREE.CylinderGeometry(1, 1, 1, 12);
+const UNIT_CONE = new THREE.ConeGeometry(1, 1, 18);
+function makeArrow(color, r) {
+  const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.35, transparent: true });
+  const g = new THREE.Group(), sh = new THREE.Mesh(UNIT_CYL, mat), hd = new THREE.Mesh(UNIT_CONE, mat);
+  g.add(sh, hd); g.userData = { sh, hd, mat, r }; return g;
+}
+function setArrow(g, o, dir, len, opacity, radius) {
+  if (!(len > 1e-4) || opacity === 0) { g.visible = false; return; }
+  g.visible = true;
+  const r = radius || g.userData.r, d = dir.clone().normalize(), hl = Math.min(len * 0.4, r * 6.5), sl = len - hl;
+  g.position.copy(o); g.quaternion.setFromUnitVectors(Y_AXIS, d);
+  g.userData.sh.scale.set(r, sl, r); g.userData.sh.position.set(0, sl / 2, 0);
+  g.userData.hd.scale.set(r * 2.5, hl, r * 2.5); g.userData.hd.position.set(0, sl + hl / 2, 0);
+  g.userData.mat.opacity = opacity == null ? 1 : opacity;
+}
+function setRod(m, a, b, r) {
+  const d = b.clone().sub(a), L = d.length();
+  m.position.copy(a).addScaledVector(d, 0.5); m.scale.set(r, L, r);
+  m.quaternion.setFromUnitVectors(Y_AXIS, d.normalize());
+}
+function makeRing(color) {
+  const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.35, transparent: true });
+  const g = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
+  const arc = Math.PI * 1.5;
+  inner.add(new THREE.Mesh(new THREE.TorusGeometry(1, 0.075, 8, 64, arc), mat));
+  const hd = new THREE.Mesh(UNIT_CONE, mat); hd.scale.set(0.22, 0.45, 0.22);
+  hd.position.set(Math.cos(arc), Math.sin(arc), 0);
+  hd.quaternion.setFromUnitVectors(Y_AXIS, V(-Math.sin(arc), Math.cos(arc), 0));
+  inner.add(hd); g.userData = { inner, mat }; scene.add(g); return g;
+}
+function setRing(g, center, axis, radius, angle, opacity) {
+  if (!(opacity > 0.01) || !(radius > 0)) { g.visible = false; return; }
+  g.visible = true; g.position.copy(center);
+  g.quaternion.setFromUnitVectors(Z_AXIS, axis.clone().normalize());
+  g.scale.setScalar(radius); g.userData.inner.rotation.z = angle; g.userData.mat.opacity = opacity;
+}
+function makeLine(color, opacity, dashed) {
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+  const m = dashed ? new THREE.LineDashedMaterial({ color, dashSize: 0.06, gapSize: 0.045, transparent: true, opacity })
+                   : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+  const l = new THREE.Line(g, m); l.frustumCulled = false; return l;
+}
+function setLine(l, a, b) {
+  const p = l.geometry.attributes.position; p.setXYZ(0, a.x, a.y, a.z); p.setXYZ(1, b.x, b.y, b.z); p.needsUpdate = true;
+  if (l.material.isLineDashedMaterial) l.computeLineDistances();
+}
+
+// ---------- the pendulum on its floor ----------
+const site = new THREE.Group(); scene.add(site);
+{
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(0.56, 96), new THREE.MeshPhongMaterial({ map: floorTexture(), shininess: 4 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.y = 0.004; site.add(floor);
+  const legMat = new THREE.MeshPhongMaterial({ color: 0x4c5466, shininess: 40 });
+  for (const deg of [30, 150, 270]) {
+    const leg = new THREE.Mesh(UNIT_CYL, legMat);
+    setRod(leg, V(Math.cos(deg * D2R) * 0.5, 0, Math.sin(deg * D2R) * 0.5), V(0, H + 0.02, 0), 0.008); site.add(leg);
+  }
+  const pivot = new THREE.Mesh(new THREE.SphereGeometry(0.022, 16, 12), legMat); pivot.position.y = H; site.add(pivot);
+}
+const wire = makeLine(0xf2f2f2, 0.85); site.add(wire);
+const bobMesh = new THREE.Mesh(new THREE.SphereGeometry(0.05, 32, 20),
+  new THREE.MeshPhongMaterial({ color: 0xc8932c, specular: 0xffe7a8, shininess: 90 }));
+site.add(bobMesh);
+function makePlane(color, fillOpacity, edgeOpacity) {
+  const holder = new THREE.Group();
+  const geo = new THREE.PlaneGeometry(0.9, H - 0.1);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: fillOpacity, side: THREE.DoubleSide, depthWrite: false }));
+  mesh.position.y = (H + 0.1) / 2; holder.add(mesh);
+  const edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color, transparent: true, opacity: edgeOpacity }));
+  edge.position.copy(mesh.position); holder.add(edge);
+  return holder;
+}
+const swingPlane = makePlane(0xdcaa4b, 0.17, 0.6); site.add(swingPlane);
+const ghost = makePlane(0xff5d50, 0.13, 0.95); scene.add(ghost);
+const TRAIL_MAX = 1800;
+const trail = (function () {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_MAX * 3), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(TRAIL_MAX * 3), 3));
+  const l = new THREE.Line(g, new THREE.LineBasicMaterial({ vertexColors: true })); l.frustumCulled = false; site.add(l); return l;
+})();
+const velArrow = makeArrow(0xffffff, 0.009); site.add(velArrow);
+const pushArrow = makeArrow(0xff9d4d, 0.011); site.add(pushArrow);
+
+// ---------- Earth's spin arrow and its two parts ----------
+const aOmega = makeArrow(0xf4f4f4, 0.017); scene.add(aOmega);
+const aVert = makeArrow(0x5ec8ea, 0.017); scene.add(aVert);
+const aHoriz = makeArrow(0xf186a6, 0.017); scene.add(aHoriz);
+const dash1 = makeLine(0xffffff, 0.6, true); scene.add(dash1);
+const dash2 = makeLine(0xffffff, 0.6, true); scene.add(dash2);
+const ringV = makeRing(0x5ec8ea), ringH = makeRing(0xf186a6);
+
+// ---------- the tangent cone ----------
+const NR = 14, NB = 144;
+const cone = (function () {
+  const group = new THREE.Group(); scene.add(group);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((NR + 1) * (NB + 1) * 3), 3));
+  const idx = [];
+  for (let i = 0; i < NR; i++) for (let j = 0; j < NB; j++) {
+    const a = i * (NB + 1) + j, b = a + 1, c = a + NB + 1, d = c + 1; idx.push(a, c, b, b, c, d);
+  }
+  geo.setIndex(idx);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x3fb6a8, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false });
+  const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; group.add(mesh);
+  const hourLines = [], arrows = [];
+  for (let k = 0; k <= 24; k++) {
+    const edge = k === 0 || k === 24;
+    const l = makeLine(0xffffff, edge ? 0.95 : 0.22); group.add(l); hourLines.push(l);
+    const a = makeArrow(0xf0bb55, 0.02); group.add(a); arrows.push(a);
+  }
+  const circGeo = new THREE.BufferGeometry(); circGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array((NB + 1) * 3), 3));
+  const circle = new THREE.Line(circGeo, new THREE.LineBasicMaterial({ color: 0xdcaa4b, transparent: true, opacity: 0.9 })); circle.frustumCulled = false; group.add(circle);
+  const arcGeo = new THREE.BufferGeometry(); arcGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(65 * 3), 3));
+  const arc = new THREE.Line(arcGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 })); arc.frustumCulled = false; group.add(arc);
+  return { group, geo, mat, hourLines, arrows, circle, arc };
+})();
+// The sheet that touches the Earth along the latitude circle.
+// Sheet coordinates: d = distance along the straight line through the point, measured from
+// the latitude circle toward the tip of the cone; x = distance along the circle, eastward.
+// The construction is done for the northern hemisphere and mirrored (y -> -y) for the south,
+// where the tip lies below the South Pole and "toward the tip" means south.
+// At the Equator the cone becomes a cylinder, which is unrolled by bending it open.
+function coneInfo(lat, u) {
+  const s = lat < 0 ? -1 : 1, pa = Math.abs(lat) * D2R, sp = Math.sin(pa), cp = Math.cos(pa);
+  const cyl = Math.abs(lat) < 1e-6;
+  const X = TAU * R * cp;                                // length of the latitude circle
+  const l = cyl ? Infinity : R / Math.tan(pa);           // distance from the circle to the tip
+  const apexY = cyl ? Infinity : s * R / sp;
+  const alpha = cyl ? 0 : TAU * sp;                      // angle covered by the flat sheet
+  const hasTip = !cyl && l < 6;                          // far tips are left off the drawing
+  const dMax = hasTip ? l : 2.5, dMin = -Math.min(cyl ? 1.2 : 0.3 * l, 1.2);
+  const k = smooth(u), Lmid = Math.PI;
+  let mapN, frameN;
+  if (cyl) {
+    const Rb = R / Math.max(1e-6, 1 - k);                // bending radius: R when rolled, infinite when flat
+    mapN = (d, x) => V(-Rb * Math.sin(x / Rb), d, -R + Rb - Rb * Math.cos(x / Rb));
+    frameN = x => { const E = V(-Math.cos(x / Rb), 0, Math.sin(x / Rb)), N = V(0, 1, 0); return { E, N, U: E.clone().cross(N) }; };
+  } else {
+    // psi is the half-angle of the cone: the latitude when rolled up, 90° when flat.
+    const psi = pa + (Math.PI / 2 - pa) * k, sps = Math.sin(psi), cps = Math.cos(psi), ay = R / sp;
+    mapN = (d, x) => { const r = l - d, a = Lmid + x / l / sps; return V(r * sps * Math.sin(a), ay - r * cps, r * sps * Math.cos(a)); };
+    frameN = x => {
+      const a = Lmid + x / l / sps;
+      const E = V(Math.cos(a), 0, -Math.sin(a)), N = V(-sps * Math.sin(a), cps, -sps * Math.cos(a));
+      return { E, N, U: E.clone().cross(N) };
+    };
+  }
+  const mir = v => { if (s < 0) v.y = -v.y; return v; };
+  const map = (d, x) => mir(mapN(d, x));
+  // E = east, U = away from the Earth, north = local north on the sheet.
+  const frame = x => { const f = frameN(x); const N = mir(f.N); return { E: mir(f.E), U: mir(f.U), north: s > 0 ? N : N.negate() }; };
+  return { s, cyl, sp: s * sp, l, apexY, alpha, X, dMin, dMax, hasTip, map, frame };
+}
+function updateCone(lat, u, kShown, alpha) {
+  const ci = coneInfo(lat, u), xAt = j => -ci.X / 2 + ci.X * j;
+  const p = cone.geo.attributes.position;
+  for (let i = 0; i <= NR; i++) for (let j = 0; j <= NB; j++) {
+    const v = ci.map(ci.dMin + (ci.dMax - ci.dMin) * i / NR, xAt(j / NB)); p.setXYZ(i * (NB + 1) + j, v.x, v.y, v.z);
+  }
+  p.needsUpdate = true;
+  cone.mat.opacity = alpha * (0.2 + 0.45 * smooth(u));
+  const cp = cone.circle.geometry.attributes.position;
+  for (let j = 0; j <= NB; j++) { const v = ci.map(0, xAt(j / NB)); cp.setXYZ(j, v.x, v.y, v.z); }
+  cp.needsUpdate = true; cone.circle.material.opacity = 0.9 * alpha;
+  // Arrow size follows the size of the cone, so it also works close to the pole.
+  const L = Math.min(0.42, 0.8 * ci.X / 24, ci.hasTip ? 0.7 * ci.l : 1);
+  for (let k = 0; k <= 24; k++) {
+    const x = xAt(k / 24), line = cone.hourLines[k];
+    setLine(line, ci.map(ci.dMin, x), ci.map(ci.dMax, x));
+    line.material.opacity = alpha * (k === 0 || k === 24 ? 0.95 : 0.22);
+    if (k > kShown) { cone.arrows[k].visible = false; continue; }
+    const f = ci.frame(x);
+    const ang = (90 - 360 * ci.sp * k / 24) * D2R;      // swing direction, from east toward north
+    const dir = f.E.clone().multiplyScalar(Math.cos(ang)).addScaledVector(f.north, Math.sin(ang));
+    const o = ci.map(0, x).addScaledVector(f.U, 0.08 * L).addScaledVector(dir, -L / 2);
+    setArrow(cone.arrows[k], o, dir, L, alpha, 0.048 * L);
+  }
+  cone.arc.visible = ci.hasTip && u > 0.85;
+  if (cone.arc.visible) {
+    const ap = cone.arc.geometry.attributes.position, ar = Math.min(0.75, ci.l * 0.45), U0 = ci.frame(0).U;
+    for (let i = 0; i <= 64; i++) { const v = ci.map(ci.l - ar, xAt(i / 64)).addScaledVector(U0, 0.01); ap.setXYZ(i, v.x, v.y, v.z); }
+    ap.needsUpdate = true; cone.arc.material.opacity = seg(u, 0.85, 1);
+  }
+  return ci;
+}
+// Camera positions that fit the rolled-up cone and the flat sheet, at any latitude.
+function fitCam(points, dir, up) {
+  const sph = new THREE.Box3().setFromPoints(points).getBoundingSphere(new THREE.Sphere());
+  const dist = sph.radius / Math.tan(22.5 * D2R) * 1.3 + 0.03;
+  // Aim a little below the centre, so the picture sits higher on screen, above the caption.
+  const target = sph.center.clone().addScaledVector(up.clone().normalize(), -0.22 * sph.radius);
+  return { pos: target.clone().addScaledVector(dir.clone().normalize(), dist), target, up };
+}
+function coneCams(lat) {
+  const c0 = coneInfo(lat, 0), c1 = coneInfo(lat, 1), p0 = [], p1 = [];
+  for (let j = 0; j <= 24; j++) p0.push(c0.map(0, -c0.X / 2 + c0.X * j / 24));
+  if (c0.hasTip) p0.push(c0.map(c0.l, 0));
+  for (let i = 0; i <= 4; i++) for (let j = 0; j <= 16; j++) p1.push(c1.map(c1.dMin + (c1.dMax - c1.dMin) * i / 4, -c1.X / 2 + c1.X * j / 16));
+  const f = c1.frame(0);
+  return { day: fitCam(p0, V(0, 0.7 * c0.s, 1), V(0, 1, 0)), flat: fitCam(p1, f.U, f.north) };
+}
+
+// ======================================================================
+// Labels drawn over the 3D view
+// ======================================================================
+const tagLayer = document.getElementById('tags');
+const tagEls = {}; let usedTags = new Set();
+let viewW = 1, viewH = 1;
+function occluded(p) {
+  const o = camera.position, d = p.clone().sub(o), L = d.length(); d.divideScalar(L);
+  const b = o.dot(d), c = o.lengthSq() - (R * 0.985) * (R * 0.985), disc = b * b - c;
+  if (disc < 0) return false;
+  const t1 = -b - Math.sqrt(disc); return t1 > 0 && t1 < L;
+}
+function tag(key, text, world, cls) {
+  usedTags.add(key);
+  let el = tagEls[key];
+  if (!el) { el = document.createElement('div'); tagLayer.appendChild(el); tagEls[key] = el; }
+  const c = 'tag ' + (cls || '');
+  if (el.className !== c) el.className = c;
+  if (el._t !== text) { el.textContent = text; el._t = text; }
+  const p = world.clone().project(camera);
+  const vis = p.z > -1 && p.z < 1 && Math.abs(p.x) < 1.05 && Math.abs(p.y) < 1.05 && !occluded(world);
+  el.hidden = !vis;
+  if (vis) el.style.transform = `translate(${((p.x * 0.5 + 0.5) * viewW).toFixed(1)}px, ${((-p.y * 0.5 + 0.5) * viewH).toFixed(1)}px) translate(-50%, -125%)`;
+}
+function endTags() { for (const k in tagEls) if (!usedTags.has(k)) tagEls[k].hidden = true; usedTags = new Set(); }
+
+// ======================================================================
+// The film: chapters made of steps ("beats"). Each beat is one caption.
+// Animation inside a chapter is timed from the beat start times, so the
+// pictures always match the words.
+// ======================================================================
+function def(spec) {
+  const beats = spec.beats.map(x => typeof x === 'string' ? { text: x } : x);
+  const starts = [0];
+  for (const bt of beats) {
+    const words = bt.text.split(/\s+/).length;
+    bt.dur = bt.dur || Math.max(4.5, words / 2.2 + 1.8);
+    starts.push(starts[starts.length - 1] + bt.dur);
+  }
+  const b = i => starts[clamp(i, 0, starts.length - 1)];
+  const ch = Object.assign({ title: spec.title, short: spec.short, beats, starts, dur: starts[starts.length - 1] }, spec.make(b));
+  if (!ch.P) ch.P = makeP(ch.lat, ch.T, ch.dur);
+  return ch;
+}
+
+// Tilt of a plane that stays fixed in space, after 6 hours in Paris (for the caption of chapter 4)
+const TILT6 = (function () {
+  const B0 = basis(PARIS, 0), B6 = basis(PARIS, TAU * 6 / SID);
+  return Math.round(Math.asin(Math.abs(B0.e.dot(B6.u))) * R2D);   // north–south swing plane: its normal is east
+})();
+
+const CH = [];
+
+CH.push(def({
+  title: 'The question', short: 'The question',
+  beats: [
+    'In 1851, Léon Foucault hung a 28 kg ball on a 67 m wire in the Panthéon in Paris.',
+    'He started it swinging along one line. Over the next hours, the line of the swing slowly turned clockwise.',
+    `In Paris, the swing needs about ${PARIS_PERIOD} hours to turn once all the way round.`,
+    'At the North Pole it would need one day of 23.93 hours. At the Equator it would not turn at all.',
+    `So why ${PARIS_PERIOD} hours in Paris, and not 24? This film answers that question in small steps.`,
+    'Note: the pendulum is drawn far larger than real, and time is sped up. The panel at the top left always shows the real numbers.'
+  ],
+  make: b => ({
+    lat: () => PARIS, T: t => 0.45 * t, swing: () => ({ t0: 0, psi0: 90 }),
+    frame(t, B) {
+      const sc = 0.6, k = seg(t, b(0) + 3, b(1) + 3);
+      const far = worldCam([0, 5.2, 17], [0, 0.8, 0]);
+      const near = siteCam(B, sc, [1.7, 1.3, 2.1], [0, 0.42, 0]);
+      return { scale: sc, cam: mixCam(far, near, k), latCircle: true, trailW: 16,
+        tags: k < 0.6 ? [['paris', 'Paris, 48.85° N', loc(B, sc, 0, 1.1, 0), 'brass big']] : [] };
+    }
+  })
+}));
+
+CH.push(def({
+  title: 'At the North Pole', short: 'North Pole',
+  beats: [
+    "Start with the easy case. Put the pendulum exactly at the North Pole. Earth's axis runs straight up through the wire.",
+    'This view is from space. The stars do not move. The swing also keeps the same line in space all day.',
+    'The Earth turns under the pendulum, counter-clockwise as seen from above, once every 23.93 hours.',
+    'The small window shows the same pendulum, seen by a person who stands on the floor and looks down.',
+    'From the floor, the swing turns clockwise, once every 23.93 hours. Nothing pushes the swing. The floor turns, and the swing does not.',
+    'This case is easy because the floor turns only about the vertical line through the wire. Nothing else happens to the floor.'
+  ],
+  make: b => ({
+    lat: () => 90, T: t => 0.85 * t, swing: () => ({ t0: 0, psi0: 90 }),
+    frame(t, B) {
+      const sc = 1;
+      return { scale: sc, axis: true, cam: worldCam([3.3, 7.4, 6.4], [0, 3.45, 0]),
+        inset: t >= b(3) - 0.3 ? { cam: siteCam(B, sc, [0, 2.45, 0.001], [0, 0, 0], true), title: 'Seen from the floor' } : null,
+        tags: [['axis', "Earth's axis", V(0, 5.15, 0)]] };
+    }
+  })
+}));
+
+CH.push(def({
+  title: 'At the Equator', short: 'Equator',
+  beats: [
+    "Now move the pendulum to the Equator. Here Earth's axis is parallel to the ground. It points north, along the floor (white arrow).",
+    'The swing runs along the north–south line.',
+    'Seen from above the North Pole, the pendulum travels around the Earth. The floor tilts as it goes, and the swing plane tilts with it.',
+    'Why does the swing follow the floor here? Gravity always points to the centre of the Earth. When the floor tilts, the direction of "down" tilts with it.',
+    'A pendulum always swings in a vertical plane. So when "down" tilts, the swing plane must tilt too. The floor carries it along.',
+    'Result: at the Equator the swing never turns relative to the floor. The small window shows the path staying on the north–south line.'
+  ],
+  make: b => ({
+    lat: () => 0, lon: () => -78.47, T: t => 1.2 * t, swing: () => ({ t0: 0, psi0: 90 }),
+    frame(t, B) {
+      const sc = 1;
+      const far = worldCam([0, 13.5, 4.5], [0, 0, 0]);
+      const near = siteCam(B, sc, [2.1, 1.5, 2.3], [0, 0.5, 0]);
+      return { scale: sc, axis: true, split: { omega: 1 }, cam: mixCam(far, near, seg(t, b(3), b(3) + 3.5)),
+        inset: t >= b(1) - 0.3 ? { cam: siteCam(B, sc, [0, 2.45, 0.001], [0, 0, 0], true), title: 'Seen from the floor' } : null };
+    }
+  })
+}));
+
+CH.push(def({
+  title: 'A common mistake', short: 'A mistake',
+  beats: [
+    'Many explanations say: "the swing plane stays fixed relative to the stars." At the pole this is true. In Paris it is false. Here is why.',
+    'The red frame is a plane that stays truly fixed in space. At the start it matches the swing plane exactly.',
+    { text: 'Now let the Earth turn for 6 hours. Watch the red plane and the floor.', dur: 10 },
+    `After 6 hours, the red plane is no longer vertical. It leans ${TILT6}° away from the vertical line.`,
+    'A swinging ball cannot stay in a leaning plane. Gravity pulls the ball down, out of it. So the real swing plane cannot be the red plane.',
+    'So the rule must be different. The swing plane always stays vertical. It turns only as much as it must to stay vertical, and it never twists about the vertical line.',
+    'The next chapter shows what this rule does to the swing at any latitude.'
+  ],
+  make: b => {
+    const B0 = basis(PARIS, 0);
+    return {
+      lat: () => PARIS,
+      T: t => 6 * seg(t, b(2) + 0.8, b(2) + 8.8),
+      swing: () => ({ t0: 0, psi0: 90 }),
+      frame(t, B) {
+        const sc = 0.8;
+        const off = B0.e.clone().multiplyScalar(2.5 * sc).addScaledVector(B0.u, 2.3 * sc).addScaledVector(B0.s, 2.7 * sc);
+        const follow = { pos: B.pos.clone().add(off), target: loc(B, sc, 0, 0.5, 0), up: B0.u.clone() };
+        const near = siteCam(B, sc, [2.4, 1.15, 2.4], [0, 0.5, 0]);
+        return { scale: sc, ghost: t >= b(1) - 0.3 ? { t: 0 } : null, ghostTag: t >= b(3) - 0.5,
+          cam: mixCam(follow, near, seg(t, b(4), b(4) + 3.5)) };
+      }
+    };
+  }
+}));
+
+CH.push(def({
+  title: "Split the Earth's spin", short: 'Split the spin',
+  beats: [
+    "Here is the key idea. The Earth's spin can be drawn as an arrow along Earth's axis. Call it Ω (white arrow).",
+    'At the pendulum, split this arrow into two parts. One part points straight up (blue). The other part lies along the ground, toward north (pink).',
+    "Spins add like arrows. So the Earth's spin is exactly the same as these two spins together.",
+    'The blue part spins the floor about the vertical line. This is the North Pole case, only slower.',
+    'The pink part tilts the floor about the north–south line. This is the Equator case. The swing follows the tilt, so this part does not turn the swing.',
+    'Why the difference? Around the vertical line, gravity and the wire are the same in every direction. So nothing can make the swing turn with the floor.',
+    'But a tilt changes the direction of "down". Gravity then pulls the swing plane along with the tilt.',
+    'So only the blue part turns the floor under the swing. Its size is Ω × sin(latitude).',
+    { text: 'Watch the two parts as the pendulum moves from the Equator to the North Pole.', dur: 15 },
+    'At the Equator the blue part is zero, so the swing does not turn. At the pole the blue part is the whole arrow, so the swing turns once per day.',
+    `In Paris, sin 48.85° = 0.753. The swing turns at 0.753 times the polar rate. One full turn takes 23.93 h ÷ 0.753 = ${PARIS_PERIOD} hours.`
+  ],
+  make: b => ({
+    lat(t) {
+      const s = b(8);
+      if (t < s + 0.5) return PARIS;
+      if (t < s + 4) return lerp(PARIS, 0, seg(t, s + 0.5, s + 3.5));
+      if (t < b(10)) return lerp(0, 90, seg(t, s + 4.5, s + 13.5));
+      return lerp(90, PARIS, seg(t, b(10), b(10) + 3));
+    },
+    T: t => 0.5 * t, swing: () => ({ t0: 0, psi0: 90 }),
+    frame(t, B) {
+      const sc = 1;
+      return { scale: sc, trailW: 10,
+        split: { omega: seg(t, 0, 1.2), parts: seg(t, b(1), b(1) + 1.5), ringV: seg(t, b(3), b(3) + 1), ringH: seg(t, b(4), b(4) + 1), tags: true },
+        cam: siteCam(B, sc, [2.6, 2.1, 1.35], [0, 1.05, -0.35]) };
+    }
+  })
+}));
+
+CH.push(def({
+  title: 'The cone', short: 'The cone',
+  beats: [
+    'A second way to see the same result uses only geometry. No forces are needed.',
+    'Make a cone that touches the Earth along the whole Paris latitude circle. Along that circle, the cone surface and the ground have the same slope.',
+    "The tip of the cone is on Earth's axis, above the North Pole. The straight lines from the tip down the cone are the local north–south lines.",
+    { text: 'Now let one day pass. Every hour, a copy of the swing direction stays behind on the cone (gold arrows).', dur: 27 },
+    `After one day the pendulum is back where it started. But the swing points in a new direction. It turned ${PARIS_TURN}° clockwise.`,
+    { text: 'Now unroll the cone onto a flat sheet. A cone flattens without stretching, so the angles on its surface do not change.', dur: 9.5 },
+    'On the flat sheet, all 25 arrows are parallel. The swing never turned itself. It kept the same direction all along its path.',
+    `But the flat sheet is not a full circle. It covers 360° × sin 48.85° = ${PARIS_TURN}°. Its two edges are the north line at the start and the north line at the end.`,
+    `North at the end is turned ${PARIS_TURN}° from north at the start. The swing kept its direction, so relative to north it turned ${PARIS_TURN}°. That is the Foucault rotation.`,
+    'At the pole the cone becomes a flat disk: a full 360°. At the Equator it becomes a cylinder, which unrolls into a strip: 0°. Every latitude in between gives 360° × sin(latitude).'
+  ],
+  make: b => ({
+    lat: () => PARIS,
+    T: t => SID * clamp((t - b(3) - 1) / 24, 0, 1),
+    swing: () => ({ t0: 0, psi0: 90 }),
+    frame(t, B) {
+      const sc = 0.5, T = this.T(t), u = seg(t, b(5) + 0.5, b(5) + 7.5);
+      const ci = coneInfo(PARIS, 1);
+      const day = worldCam([0, 7.2, 10.8], [0, 2.4, 0]);
+      const top = worldCam([0, ci.apexY + 11, 0.55], [0, ci.apexY, 0.5], [0, 0, -1]);
+      const k = t >= b(3) ? Math.floor(T / (SID / 24) + 1e-6) : -1;
+      const tags = [];
+      if (t >= b(1) && t < b(3)) tags.push(['lc', 'Paris latitude circle', V(0, R * sinP, R * Math.cos(PARIS * D2R)).multiplyScalar(1.02), 'brass']);
+      if (t >= b(2) && t < b(3)) tags.push(['tip', 'tip of the cone', V(0, ci.apexY, 0)]);
+      return { scale: sc, axis: true, showSite: u < 0.02, trailW: 6,
+        cone: { lat: PARIS, u, k, alpha: seg(t, b(1), b(1) + 2), edgeTags: t >= b(7) - 0.5, arcTag: u > 0.9 },
+        cam: mixCam(day, top, u), tags };
+    }
+  })
+}));
+
+CH.push(def({
+  title: 'Seen from the floor', short: 'From the floor',
+  beats: [
+    'Last view: stand on the floor in Paris and look straight down. The sand records the path of the ball.',
+    'From here the floor seems to stand still. So the swing seems to be pushed sideways, to the right. This sideways push is called the Coriolis effect.',
+    'White arrow: the velocity of the ball. Orange arrow: the sideways push. In the northern hemisphere it always points to the right of the motion.',
+    "The push has size 2 × Ω × sin(latitude) × speed. Only the vertical (blue) part of Earth's spin appears in it. The horizontal part only pushes up or down, which slightly changes the pull on the wire.",
+    'A common explanation: the ground near the Equator moves east faster than the ground farther north. That explains a north–south swing. But what about an east–west swing?',
+    { text: 'Here is a swing that starts along the east–west line. It turns at exactly the same rate.', dur: 15 },
+    'The ground-speed explanation only covers the north–south case. The full reason is the one you saw: the floor turns about the vertical line at Ω × sin(latitude), and the swing does not.',
+    'So far the ball was released from rest at the end of its swing, as Foucault did. That draws a star: sharp points at the ends, and a small gap in the middle.',
+    { text: 'Now the ball starts at the centre with a push. Each swing passes exactly through the centre, and the ends are round. This draws flower petals.', dur: 16 },
+    'Both shapes are correct. Only the start is different. In a real 67 m pendulum both look like straight lines: each petal is only about 1.4 mm wide.'
+  ],
+  make: b => ({
+    lat: () => PARIS, T: t => 0.8 * t,
+    swing: t => t < b(5) ? { t0: 0, psi0: 90 } : t < b(8) ? { t0: b(5), psi0: 0 } : { t0: b(8), psi0: 90, start: 'push' },
+    frame(t, B) {
+      const sc = 1;
+      return { scale: sc, trailW: 45, coriolis: t >= b(2) - 0.5,
+        cam: siteCam(B, sc, [0, 2.25, 0.001], [0, 0, 0], true) };
+    }
+  })
+}));
+
+const FILM_TOTAL = CH.reduce((s, c) => s + c.dur, 0);
+const CH_START = []; { let s = 0; for (const c of CH) { CH_START.push(s); s += c.dur; } }
+
+// ---------- chapter 8: the sandbox ----------
+const SB = { lat: PARIS, lon: PARIS_LON, start: 'rest', hps: 1, view: 'floor', split: false, unroll: 0, t: 0, Tb: 0, tb: 0 };
+const SANDBOX = {
+  title: 'Try it yourself', short: 'Try it', sandbox: true,
+  beats: [{ text: 'Now try it yourself. Change the latitude, the speed of the Earth, and the view. Every number in the panel at the top left follows your choices.' }],
+  starts: [0, Infinity],
+  lat: () => SB.lat,
+  lon: () => SB.lon,
+  T: t => SB.Tb + SB.hps * (t - SB.tb),
+  swing: () => ({ t0: 0, psi0: 90, start: SB.start }),
+  P(t) { return TAU / SID * Math.sin(SB.lat * D2R) * this.T(t); },
+  frame(t, B) {
+    const sc = 1, s = SB.lat < 0 ? -1 : 1;
+    const out = { scale: sc, trailW: 40, latCircle: true, axis: SB.view === 'space' || SB.view === 'cone',
+      split: SB.split ? { omega: 1, parts: 1, ringV: 1, ringH: 1, tags: true } : null };
+    const coneOK = Math.abs(SB.lat) <= 89;
+    if (SB.view === 'floor') out.cam = siteCam(B, sc, [1.8, 1.3, 2.2], [0, 0.45, 0]);
+    else if (SB.view === 'top') out.cam = siteCam(B, sc, [0, 2.3, 0.001], [0, 0, 0], true);
+    else if (SB.view === 'cone' && coneOK) {
+      const u = SB.unroll, cams = coneCams(SB.lat);
+      out.cam = mixCam(cams.day, cams.flat, u); out.showSite = false; out.latCircle = true;
+      out.cone = { lat: SB.lat, u, k: 24, alpha: 1, edgeTags: u > 0.6, arcTag: u > 0.9 };
+    } else {
+      out.cam = worldCam([0.001, s * 11, 7.5], [0, s * 0.8, 0], [0, s, 0]);
+      out.inset = { cam: siteCam(B, sc, [0, 2.45, 0.001], [0, 0, 0], true), title: 'Seen from the floor' };
+    }
+    return out;
+  }
+};
+const ALL = CH.concat([SANDBOX]);
+
+// ======================================================================
+// Player state
+// ======================================================================
+const $ = id => document.getElementById(id);
+let mode = 'film', ft = 0, playing = false, speed = 1, lastNow = performance.now();
+let voiceOn = false, speaking = false, voice = null;
+const synth = window.speechSynthesis || null;
+const user = { yaw: 0, pitch: 0, zoom: 1, zoomTo: 1, panX: 0, panY: 0 };
+let lastChapterKey = -1, lastBeatKey = '';
+
+function locate(f) {
+  let ci = CH.length - 1;
+  for (let i = 0; i < CH.length; i++) if (f < CH_START[i] + CH[i].dur) { ci = i; break; }
+  return { ci, t: clamp(f - CH_START[ci], 0, CH[ci].dur - 1e-6) };
+}
+function beatIndex(ch, t) { let i = 0; while (i < ch.beats.length - 1 && t >= ch.starts[i + 1]) i++; return i; }
+function current() {
+  if (mode === 'sandbox') return { ci: CH.length, ch: SANDBOX, t: SB.t };
+  const L = locate(ft); return { ci: L.ci, ch: CH[L.ci], t: L.t };
+}
+
+// ---------- speech ----------
+function pickVoice() {
+  if (!synth) return;
+  const vs = synth.getVoices();
+  voice = vs.find(v => /^en[-_](GB|US)/i.test(v.lang) && /natural|neural|google/i.test(v.name)) || vs.find(v => /^en/i.test(v.lang)) || null;
+}
+if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
+function spoken(s) {
+  return s.replace(/Ω/g, 'omega').replace(/sin\(latitude\)/g, 'sine of the latitude').replace(/sin (\d)/g, 'sine $1')
+    .replace(/(\d)°/g, '$1 degrees').replace(/×/g, ' times ').replace(/÷/g, ' divided by ')
+    .replace(/(\d) h\b/g, '$1 hours').replace(/(\d) kg\b/g, '$1 kilogram').replace(/(\d) m\b/g, '$1 metre')
+    .replace(/–/g, ' ').replace(/"/g, '');
+}
+function say(text) {
+  if (!synth || !voiceOn) return;
+  synth.cancel();
+  const u = new SpeechSynthesisUtterance(spoken(text));
+  if (voice) u.voice = voice;
+  u.rate = clamp(0.95 * speed, 0.7, 1.5);
+  u.onend = u.onerror = () => { speaking = false; };
+  speaking = true; synth.speak(u);
+}
+function hush() { if (synth) synth.cancel(); speaking = false; }
+
+// ---------- UI wiring ----------
+const chipsEl = $('chips');
+ALL.forEach((c, i) => {
+  const btn = document.createElement('button'); btn.className = 'chip'; btn.type = 'button';
+  btn.innerHTML = `<b>${i + 1}</b>`; btn.appendChild(document.createTextNode(c.short)); btn.title = c.title;
+  btn.addEventListener('click', () => goChapter(i));
+  chipsEl.appendChild(btn);
+});
+const chipEls = Array.from(chipsEl.children);
+const scrub = $('scrub'); scrub.max = FILM_TOTAL.toFixed(2);
+CH_START.forEach((s, i) => { if (i === 0) return; const tick = document.createElement('i'); tick.style.left = (s / FILM_TOTAL * 100) + '%'; $('ticks').appendChild(tick); });
+
+function resetView() { user.yaw = 0; user.pitch = 0; user.zoom = 1; user.zoomTo = 1; user.panX = 0; user.panY = 0; }
+function goChapter(i) {
+  hush(); resetView();
+  if (i >= CH.length) { enterSandbox(); return; }
+  mode = 'film'; ft = CH_START[i] + 0.001; lastBeatKey = '';
+}
+function enterSandbox() {
+  mode = 'sandbox'; SB.t = 0; SB.Tb = 0; SB.tb = 0; lastBeatKey = ''; resetView();
+}
+function setPlaying(p) {
+  playing = p;
+  $('play').textContent = p ? '❚❚ Pause' : '▶ Play';
+  if (!p) hush();
+  else if (voiceOn) { const c = current(); say(c.ch.beats[beatIndex(c.ch, c.t)].text); }
+}
+function stepBeat(dir) {
+  hush();
+  if (mode === 'sandbox') { if (dir < 0) { mode = 'film'; ft = CH_START[CH.length - 1] + CH[CH.length - 1].starts[CH[CH.length - 1].beats.length - 1] + 0.001; } return; }
+  const { ci, t } = locate(ft), ch = CH[ci], bi = beatIndex(ch, t);
+  if (dir > 0) {
+    if (bi < ch.beats.length - 1) ft = CH_START[ci] + ch.starts[bi + 1] + 0.001;
+    else if (ci < CH.length - 1) { ft = CH_START[ci + 1] + 0.001; resetView(); }
+    else enterSandbox();
+  } else {
+    const intoBeat = t - ch.starts[bi];
+    if (intoBeat > 1.5) ft = CH_START[ci] + ch.starts[bi] + 0.001;
+    else if (bi > 0) ft = CH_START[ci] + ch.starts[bi - 1] + 0.001;
+    else if (ci > 0) { const pc = CH[ci - 1]; ft = CH_START[ci - 1] + pc.starts[pc.beats.length - 1] + 0.001; resetView(); }
+    else ft = 0.001;
+  }
+  lastBeatKey = '';
+}
+$('play').addEventListener('click', () => setPlaying(!playing));
+$('prev').addEventListener('click', () => stepBeat(-1));
+$('next').addEventListener('click', () => stepBeat(1));
+scrub.addEventListener('input', () => { hush(); mode = 'film'; ft = parseFloat(scrub.value); lastBeatKey = ''; });
+$('speed').addEventListener('change', e => { speed = parseFloat(e.target.value); });
+$('voice').addEventListener('click', () => {
+  voiceOn = !voiceOn; $('voice').textContent = voiceOn ? 'Voice: on' : 'Voice: off';
+  if (!synth) { $('voice').textContent = 'Voice: not available'; voiceOn = false; return; }
+  if (voiceOn && playing) { const c = current(); say(c.ch.beats[beatIndex(c.ch, c.t)].text); } else hush();
+});
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+  if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
+  else if (e.code === 'ArrowRight' && e.target.tagName !== 'INPUT') stepBeat(1);
+  else if (e.code === 'ArrowLeft' && e.target.tagName !== 'INPUT') stepBeat(-1);
+});
+
+// sandbox controls
+function sbRestart() { SB.t = 0; SB.Tb = 0; SB.tb = 0; }
+function fmtLat(l) { return Math.abs(l) < 0.01 ? '0° (Equator)' : `${Math.abs(l).toFixed(2)}° ${l > 0 ? 'N' : 'S'}`; }
+function syncSandboxUI() {
+  $('sbLat').value = SB.lat; $('sbLatOut').textContent = fmtLat(SB.lat);
+  $('sbSpeedOut').textContent = SB.hps.toFixed(2).replace(/0$/, '') + ' h';
+  document.querySelectorAll('#sbViews .seg').forEach(x => x.classList.toggle('on', x.dataset.view === SB.view));
+  document.querySelectorAll('#sbStarts .seg').forEach(x => x.classList.toggle('on', x.dataset.start === SB.start));
+  document.querySelectorAll('#sbPresets .seg').forEach(x => x.classList.toggle('on', Math.abs(parseFloat(x.dataset.lat) - SB.lat) < 0.01));
+  const coneOK = Math.abs(SB.lat) <= 89;
+  $('sbUnrollField').hidden = SB.view !== 'cone';
+  $('coneMsg').hidden = coneOK; $('sbUnroll').disabled = !coneOK;
+  $('sbUnrollOut').textContent = Math.round(SB.unroll * 100) + ' %';
+}
+$('sbLat').addEventListener('input', e => { SB.lat = parseFloat(e.target.value); sbRestart(); syncSandboxUI(); });
+$('sbSpeed').addEventListener('input', e => {
+  const T = SANDBOX.T(SB.t); SB.hps = parseFloat(e.target.value); SB.Tb = T; SB.tb = SB.t; syncSandboxUI();
+});
+$('sbPresets').addEventListener('click', e => { const d = e.target.dataset.lat; if (d == null) return; SB.lat = parseFloat(d); SB.lon = parseFloat(e.target.dataset.lon); sbRestart(); syncSandboxUI(); });
+$('sbViews').addEventListener('click', e => { const v = e.target.dataset.view; if (!v) return; SB.view = v; resetView(); syncSandboxUI(); });
+$('sbUnroll').addEventListener('input', e => { SB.unroll = parseFloat(e.target.value); syncSandboxUI(); });
+$('sbSplit').addEventListener('change', e => { SB.split = e.target.checked; });
+$('sbRestart').addEventListener('click', sbRestart);
+$('sbStarts').addEventListener('click', e => { const v = e.target.dataset.start; if (!v) return; SB.start = v; sbRestart(); syncSandboxUI(); });
+syncSandboxUI();
+
+// camera drag / zoom
+// Left drag: rotate. Right drag (or Shift + left drag): move the view. Middle drag: zoom.
+const pointers = new Map(); let pinch0 = 0, zoom0 = 1;
+const PAN_PER_PX = 2 * Math.tan(22.5 * D2R);   // screen height in units of camera distance (45° field of view)
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
+canvas.addEventListener('pointerdown', e => {
+  if (e.button === 1) e.preventDefault();       // stop the browser's middle-click scrolling
+  canvas.setPointerCapture(e.pointerId);
+  const mode = e.button === 2 || (e.button === 0 && e.shiftKey) ? 'pan' : e.button === 1 ? 'zoom' : 'rotate';
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, mode });
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); zoom0 = user.zoom; } });
+canvas.addEventListener('pointermove', e => {
+  const p = pointers.get(e.pointerId); if (!p) return;
+  if (pointers.size === 1) {
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (p.mode === 'pan') { user.panX -= dx * PAN_PER_PX / viewH; user.panY += dy * PAN_PER_PX / viewH; }
+    else if (p.mode === 'zoom') user.zoom = user.zoomTo = clamp(user.zoom * Math.exp(dy * 0.005), 0.25, 4);
+    else {
+      user.yaw -= dx * 0.006;
+      user.pitch = clamp(user.pitch + dy * 0.006, -1.3, 1.3);
+    }
+  }
+  p.x = e.clientX; p.y = e.clientY;
+  if (pointers.size === 2 && pinch0 > 0) { const [a, b] = [...pointers.values()]; user.zoom = user.zoomTo = clamp(zoom0 * pinch0 / Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), 0.25, 4); }
+});
+const endPtr = e => { pointers.delete(e.pointerId); pinch0 = 0; };
+canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr);
+// The wheel sets a target zoom; the loop moves the actual zoom toward it, so one notch is a smooth zoom.
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const px = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 800 : 1);   // lines or pages to pixels
+  user.zoomTo = clamp(user.zoomTo * Math.exp(px * 0.0012), 0.25, 4);
+}, { passive: false });
+canvas.addEventListener('dblclick', resetView);
+
+function applyCam(cam, cObj, withUser) {
+  const off = cam.pos.clone().sub(cam.target), up = cam.up.clone().normalize();
+  if (withUser) {
+    off.applyAxisAngle(up, user.yaw);
+    const right = off.clone().cross(up);
+    if (right.lengthSq() > 1e-10) off.applyAxisAngle(right.normalize(), user.pitch);
+    off.multiplyScalar(user.zoom);
+  }
+  const target = cam.target.clone();
+  if (withUser && (user.panX || user.panY)) {
+    // Move camera and target together, along the screen's horizontal and vertical directions.
+    const fwd = off.clone().negate().normalize(), right = fwd.clone().cross(up).normalize();
+    const camUp = right.clone().cross(fwd), dist = off.length();
+    target.addScaledVector(right, user.panX * dist).addScaledVector(camUp, user.panY * dist);
+  }
+  cObj.position.copy(target).add(off); cObj.up.copy(up); cObj.lookAt(target);
+}
+
+function resize() {
+  viewW = window.innerWidth; viewH = window.innerHeight;
+  renderer.setSize(viewW, viewH, false);
+  camera.aspect = viewW / viewH; camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize); resize();
+
+// ======================================================================
+// Frame
+// ======================================================================
+const SAND = [0.86, 0.79, 0.62], GROOVE = [0.22, 0.14, 0.06];
+const insetFrame = $('insetFrame');
+const fmtClock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+function setText(id, v) { const el = $(id); if (el._v !== v) { el.textContent = v; el._v = v; } }
+
+function draw() {
+  const { ci, ch, t } = current();
+  const lat = ch.lat(t), T = ch.T(t), theta = TAU * T / SID;
+  const B = basis(lat, theta);
+  const S = ch.frame(t, B);
+  const sc = S.scale || 1;
+
+  // Earth and site
+  earth.rotation.y = theta - (ch.lon ? ch.lon(t) : PARIS_LON) * D2R;
+  axisGroup.visible = !!S.axis;
+  latCircle.visible = !!(S.latCircle || S.cone);
+  setLatCircle(Math.round(lat * 100) / 100);
+  site.position.copy(B.pos); site.quaternion.copy(B.q); site.scale.setScalar(sc);
+  site.visible = S.showSite !== false;
+
+  // Pendulum
+  const bs = bobAt(ch, t);
+  const r2 = bs.x * bs.x + bs.y * bs.y;
+  const by = H - Math.sqrt(LW * LW - r2);
+  bobMesh.position.set(bs.x, by, -bs.y);
+  setLine(wire, V(0, H, 0), bobMesh.position);
+  swingPlane.rotation.y = bs.a;
+
+  // Trail in the sand
+  {
+    const W = S.trailW || 12, t0 = Math.max(bs.t0, t - W), span = t - t0;
+    const N = clamp(Math.ceil(span / 0.025), 2, TRAIL_MAX);
+    const P = trail.geometry.attributes.position, C = trail.geometry.attributes.color;
+    for (let k = 0; k < N; k++) {
+      const tk = t0 + span * k / (N - 1), q = bobAt(ch, tk);
+      P.setXYZ(k, q.x, 0.007, -q.y);
+      const f = Math.pow(k / (N - 1), 0.8);
+      C.setXYZ(k, lerp(SAND[0], GROOVE[0], f), lerp(SAND[1], GROOVE[1], f), lerp(SAND[2], GROOVE[2], f));
+    }
+    P.needsUpdate = true; C.needsUpdate = true; trail.geometry.setDrawRange(0, span > 0.05 ? N : 0);
+  }
+
+  // Coriolis arrows
+  if (S.coriolis) {
+    const p1 = bobAt(ch, t - 0.01), p2 = bobAt(ch, t + 0.01);
+    const vx = (p2.x - p1.x) / 0.02, vy = (p2.y - p1.y) / 0.02, sp = Math.hypot(vx, vy), f = sp / (AMP * W0);
+    const o = V(bs.x, by, -bs.y), sgn = Math.sign(Math.sin(lat * D2R));
+    setArrow(velArrow, o, V(vx, 0, -vy), 0.34 * f, f > 0.18 ? 1 : 0);
+    setArrow(pushArrow, o, V(sgn * vy, 0, sgn * vx), 0.26 * f, f > 0.18 && sgn !== 0 ? 1 : 0);
+  } else { velArrow.visible = false; pushArrow.visible = false; }
+
+  // Ghost plane that stays fixed in space
+  let ghostTilt = null;
+  if (S.ghost) {
+    const tg = S.ghost.t, Bg = basis(ch.lat(tg), TAU * ch.T(tg) / SID), ag = bobAt(ch, tg).a;
+    ghost.visible = true; ghost.position.copy(B.pos); ghost.scale.setScalar(sc);
+    ghost.quaternion.copy(Bg.q).multiply(new THREE.Quaternion().setFromAxisAngle(Y_AXIS, ag));
+    const nrm = Z_AXIS.clone().applyQuaternion(ghost.quaternion);
+    ghostTilt = Math.asin(clamp(Math.abs(nrm.dot(B.u)), 0, 1)) * R2D;
+  } else ghost.visible = false;
+
+  // Earth's spin and its two parts
+  const spl = S.split;
+  if (spl) {
+    const O = loc(B, sc, 0, H + 0.03, 0), L = 0.95 * sc;
+    const sl = Math.sin(lat * D2R), cl = Math.cos(lat * D2R);
+    const tipO = O.clone().addScaledVector(Y_AXIS, L);
+    const vVec = B.u.clone().multiplyScalar(L * sl), hVec = B.n.clone().multiplyScalar(L * cl);
+    setArrow(aOmega, O, Y_AXIS, L, spl.omega || 0);
+    const pa = spl.parts || 0;
+    setArrow(aVert, O, sl >= 0 ? B.u : B.u.clone().negate(), Math.abs(L * sl), pa);
+    setArrow(aHoriz, O, B.n, L * cl, pa);
+    dash1.visible = dash2.visible = pa > 0.01 && Math.abs(sl) > 0.03 && cl > 0.03;
+    if (dash1.visible) {
+      setLine(dash1, O.clone().add(vVec), tipO); setLine(dash2, O.clone().add(hVec), tipO);
+      dash1.material.opacity = dash2.material.opacity = 0.6 * pa;
+    }
+    const rr = 0.12 * sc;
+    setRing(ringV, O.clone().addScaledVector(vVec, 0.55), sl >= 0 ? B.u : B.u.clone().negate(), rr, t * 2.4 * Math.abs(sl), Math.abs(sl) > 0.12 ? (spl.ringV || 0) : 0);
+    setRing(ringH, O.clone().addScaledVector(hVec, 0.55), B.n, rr, t * 2.4 * cl, cl > 0.12 ? (spl.ringH || 0) : 0);
+    if (spl.tags) {
+      if ((spl.omega || 0) > 0.5) tag('om', 'Ω', tipO.clone().addScaledVector(Y_AXIS, 0.06 * sc), 'big');
+      if (pa > 0.5 && Math.abs(sl) > 0.08) tag('ov', `Ω sin φ = ${sl.toFixed(2)} Ω`, O.clone().add(vVec), 'vert');
+      if (pa > 0.5 && cl > 0.08) tag('oh', `Ω cos φ = ${cl.toFixed(2)} Ω`, O.clone().add(hVec), 'horiz');
+    }
+  } else {
+    aOmega.visible = aVert.visible = aHoriz.visible = dash1.visible = dash2.visible = ringV.visible = ringH.visible = false;
+  }
+
+  // Cone
+  if (S.cone) {
+    cone.group.visible = true;
+    const ci = updateCone(S.cone.lat, S.cone.u, S.cone.k, S.cone.alpha);
+    const turn = (360 * Math.abs(ci.sp)).toFixed(0);
+    if (S.cone.arcTag) {
+      const txt = ci.cyl ? '0°: the two edges are parallel' : `${turn}° = 360° × sin ${Math.abs(S.cone.lat).toFixed(2)}°`;
+      const at = ci.hasTip ? ci.map(ci.l - Math.min(0.75, ci.l * 0.45) * 1.4, 0) : ci.map(ci.dMax * 0.55, 0);
+      tag('arc', txt, at, 'big');
+    }
+    if (S.cone.edgeTags) {
+      const word = ci.s > 0 ? 'north' : 'south', dl = ci.dMin - 0.04 * (ci.dMax - ci.dMin);
+      tag('e0', `${word} at the start`, ci.map(dl, -ci.X / 2));
+      tag('e1', `${word} at the end`, ci.map(dl, ci.X / 2));
+    }
+  } else cone.group.visible = false;
+
+  // Camera
+  applyCam(S.cam, camera, true);
+  camera.updateMatrixWorld();
+
+  // Tags from the chapter
+  if (S.tags) for (const tg of S.tags) tag(tg[0], tg[1], tg[2], tg[3]);
+  if (S.ghost && S.ghostTag && ghostTilt != null) {
+    ghost.updateMatrixWorld();
+    tag('gt', `fixed in space: leans ${ghostTilt.toFixed(0)}°`, ghost.localToWorld(V(0.45, H, 0)), 'ghost');
+  }
+  endTags();
+
+  // Render main view
+  head.position.copy(camera.position); head.target.position.copy(S.cam.target);
+  renderer.setViewport(0, 0, viewW, viewH); renderer.setScissorTest(false);
+  renderer.render(scene, camera);
+
+  // Inset view
+  if (S.inset) {
+    insetFrame.hidden = false; setText('insetTitle', S.inset.title);
+    const r = insetFrame.getBoundingClientRect();
+    const x = r.left, y = viewH - r.bottom, w = r.width, h = r.height;
+    applyCam(S.inset.cam, insetCam, false); insetCam.aspect = w / h; insetCam.updateProjectionMatrix();
+    head.position.copy(insetCam.position); head.target.position.copy(S.inset.cam.target);
+    renderer.setScissorTest(true); renderer.setScissor(x, y, w, h); renderer.setViewport(x, y, w, h);
+    // Earth's axis passes through the pendulum at the pole, right in front of this camera.
+    const axisWas = axisGroup.visible; axisGroup.visible = false;
+    renderer.render(scene, insetCam); renderer.setScissorTest(false);
+    axisGroup.visible = axisWas;
+  } else insetFrame.hidden = true;
+
+  // Text
+  const bi = beatIndex(ch, t), beat = ch.beats[bi];
+  const key = mode + ':' + ci + ':' + bi;
+  if (key !== lastBeatKey) {
+    lastBeatKey = key;
+    const ct = $('capText'); ct.textContent = beat.text;
+    ct.classList.remove('fade'); void ct.offsetWidth; ct.classList.add('fade');
+    setText('capMeta', ch.sandbox ? 'Free exploration' : `Step ${bi + 1} of ${ch.beats.length}`);
+    if (playing) say(beat.text);
+  }
+  if (ci !== lastChapterKey) {
+    lastChapterKey = ci;
+    setText('chNum', `Chapter ${ci + 1} of ${ALL.length}`); setText('chTitle', ch.title);
+    chipEls.forEach((c, i) => c.classList.toggle('on', i === ci));
+    $('sandbox').hidden = !ch.sandbox; document.body.classList.toggle('sandbox', !!ch.sandbox);
+  }
+  const sl = Math.sin(lat * D2R), turned = bs.turned * R2D;
+  setText('rLat', fmtLat(lat));
+  setText('rSin', sl.toFixed(3));
+  setText('rT', `${T.toFixed(1)} h`);
+  setText('rTurn', Math.abs(turned) < 0.05 ? '0°' : `${Math.abs(turned).toFixed(0)}° ${turned > 0 ? 'clockwise' : 'counter-clockwise'}`);
+  setText('rPer', Math.abs(sl) < 0.002 ? 'never' : `${(SID / Math.abs(sl)).toFixed(1)} h`);
+  const hps = (ch.T(t + 0.1) - ch.T(t)) / 0.1 * (mode === 'film' ? speed : 1);
+  setText('rScale', hps < 0.01 ? 'Earth paused' : `1 s = ${hps.toFixed(2)} Earth h`);
+  if (mode === 'film') { if (document.activeElement !== scrub) scrub.value = ft.toFixed(2); setText('clock', `${fmtClock(ft)} / ${fmtClock(FILM_TOTAL)}`); }
+  else setText('clock', 'free play');
+}
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.1, (now - lastNow) / 1000); lastNow = now;
+  // Ease the zoom toward the wheel's target. Done on a log scale, so zooming in and out feel the same.
+  if (user.zoom !== user.zoomTo) {
+    user.zoom *= Math.pow(user.zoomTo / user.zoom, 1 - Math.exp(-dt * 10));
+    if (Math.abs(Math.log(user.zoom / user.zoomTo)) < 1e-4) user.zoom = user.zoomTo;
+  }
+  if (playing) {
+    if (mode === 'film') {
+      let nf = ft + dt * speed;
+      // If the voice is still reading this step, wait for it before the next step starts.
+      const { ci, t } = locate(ft), ch = CH[ci], bi = beatIndex(ch, t);
+      const bEnd = CH_START[ci] + ch.starts[bi + 1];
+      if (voiceOn && speaking && nf >= bEnd - 0.04) nf = Math.max(ft, bEnd - 0.04);
+      const nextCi = locate(nf).ci;
+      if (nextCi !== ci) resetView();
+      ft = nf;
+      if (ft >= FILM_TOTAL) enterSandbox();
+    } else SB.t += dt;
+  }
+  draw();
+}
+ft = 0.001;
+requestAnimationFrame(loop);
+
+// Hook for checking the physics from the browser console.
+window.foucault = {
+  turnAfter(latDeg, hours) {
+    const ch = { lat: () => latDeg, T: t => t, swing: () => ({ t0: 0, psi0: 90 }) };
+    ch.P = makeP(ch.lat, ch.T, hours + 1);
+    return { simulated: ch.P(hours) * R2D, expected: 360 * Math.sin(latDeg * D2R) * hours / SID };
+  },
+  coneAngle(latDeg) { return coneInfo(latDeg, 1).alpha * R2D; }
+};
+})();
+</script>
+
+</body>
+</html>
