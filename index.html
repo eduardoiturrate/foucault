@@ -162,12 +162,14 @@
      The same test is in the script (PHONE_Q), which centres the 3D scene in the space
      these panels leave free. Change both together. */
   @media (max-width: 760px), (max-height: 500px) {
-    #hud { left: 12px; top: calc(10px + env(safe-area-inset-top, 0px)); width: calc(100vw - 24px - 36vw - 10px); gap: 0; }
+    /* Full width, except beside the small window at the top right. */
+    #hud { left: 12px; top: calc(10px + env(safe-area-inset-top, 0px)); width: calc(100vw - 24px); gap: 0; }
+    body.hasInset #hud { width: calc(100vw - 24px - 36vw - 10px); }
+    #filmTag .eyebrow { letter-spacing: .08em; }
     h1 { font-size: 19px; margin-top: 4px; }
     #hud { text-shadow: 0 1px 3px #000, 0 0 10px #000; }
     /* Before the film starts: the film name and what it is about, large. */
     #filmTag { display: block; }
-    body:not(.started) #hud { width: calc(100vw - 24px); }
     body:not(.started) #filmTag .eyebrow { font: 560 24px/1.15 var(--serif); letter-spacing: 0; text-transform: none; color: var(--text); }
     body:not(.started) #hudSub { display: block; font-size: 14px; }
     body:not(.started) #chTitle { display: none; }
@@ -206,11 +208,12 @@
     #transport .tbtn { padding: 7px 9px; }
     #play { min-width: 72px; }
     .chip b { width: 22px; height: 22px; }
+    body.started #filmTag .eyebrow { font-size: 10px; letter-spacing: .04em; }
   }
 
   /* Phone held sideways: text and controls on the left, 3D scene on the right. */
   @media (max-height: 500px) and (orientation: landscape) {
-    #hud { left: calc(12px + env(safe-area-inset-left, 0px)); width: min(300px, 40vw); }
+    #hud, body.hasInset #hud { left: calc(12px + env(safe-area-inset-left, 0px)); width: min(300px, 40vw); }
     h1 { font-size: 17px; }
     #insetFrame { width: 40vh; }
     body.sandbox #insetFrame { width: 40vh; }
@@ -1489,7 +1492,8 @@ function draw() {
 
   // Inset view
   if (S.inset) {
-    insetFrame.hidden = false; setText('insetTitle', S.inset.title);
+    if (insetFrame.hidden) { insetFrame.hidden = false; document.body.classList.add('hasInset'); }
+    setText('insetTitle', S.inset.title);
     const r = insetFrame.getBoundingClientRect();
     const x = r.left, y = viewH - r.bottom, w = r.width, h = r.height;
     applyCam(S.inset.cam, insetCam, false); insetCam.aspect = w / h; insetCam.updateProjectionMatrix();
@@ -1499,7 +1503,7 @@ function draw() {
     const axisWas = axisGroup.visible; axisGroup.visible = false;
     renderer.render(scene, insetCam); renderer.setScissorTest(false);
     axisGroup.visible = axisWas;
-  } else insetFrame.hidden = true;
+  } else if (!insetFrame.hidden) { insetFrame.hidden = true; document.body.classList.remove('hasInset'); }
 
   // Text
   const bi = beatIndex(ch, t), beat = ch.beats[bi];
