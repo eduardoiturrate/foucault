@@ -210,6 +210,14 @@
   body.video:not(.wide) #filmTag .eyebrow { font-size: 13px; }
   body.video:not(.wide):not(.started) #filmTag .eyebrow { font-size: 32px; }
   body.video:not(.wide):not(.started) #hudSub { font-size: 17px; }
+  /* Vertical video with the captions in the picture (index.html?video&captions): one sentence at a
+     time, above the bottom part that the apps cover, and clear of their buttons on the right. */
+  body.video.captions:not(.wide) #bottom { display: grid; bottom: 20vh; padding: 0 64px 0 12px; }
+  body.video.captions #chips, body.video.captions #transport, body.video.captions #sandbox, body.video.captions #capMeta { display: none; }
+  body.video.captions #caption { width: 100%; padding: 10px 14px; background: rgba(5, 8, 15, .8); }
+  body.video.captions #capText { font-size: 19px; font-weight: 700; line-height: 1.4; min-height: 0; text-align: center; text-wrap: balance; }
+  body.video.captions #caption:has(#capText:empty) { visibility: hidden; }
+  body.video #capText.fade { animation: none; }
   /* Horizontal video (index.html?video=wide): the desktop layout without captions and controls. */
   body.video.wide #caption, body.video.wide #transport, body.video.wide .chip:last-child { display: none; }
 
@@ -1347,8 +1355,10 @@ const fit = { area: null, k: 1, px: 1 };   // px: screen pixels per unit of (dis
 function freeArea() {
   if (VIDEO && !VIDEO_WIDE) {
     // Social apps cover the bottom of the picture with their own text and buttons.
-    const top = $('hud').getBoundingClientRect().bottom + 4;
-    return { x: 0, y: top, w: viewW, h: viewH * 0.8 - top };
+    // With captions, keep room for 3 lines of them above that part (a fixed room, so the scene
+    // does not move when a sentence is longer).
+    const top = $('hud').getBoundingClientRect().bottom + 4, room = VIDEO_CAPTIONS ? 112 : 0;
+    return { x: 0, y: top, w: viewW, h: viewH * 0.8 - room - top };
   }
   if (!phone) return { x: 0, y: 0, w: viewW, h: viewH };
   const bottom = $('bottom').getBoundingClientRect(), hud = $('hud').getBoundingClientRect();
@@ -1579,7 +1589,11 @@ ft = 0.001;
 // Video mode (index.html?video): no loop and no sound. tools/render-video.mjs sets each frame's time.
 const VIDEO = new URLSearchParams(location.search).has('video');
 const VIDEO_WIDE = new URLSearchParams(location.search).get('video') === 'wide';
-if (VIDEO) { document.body.classList.add('video'); document.body.classList.toggle('wide', VIDEO_WIDE); voiceOn = false; }
+const VIDEO_CAPTIONS = VIDEO && new URLSearchParams(location.search).has('captions');
+if (VIDEO) {
+  document.body.classList.add('video'); voiceOn = false;
+  document.body.classList.toggle('wide', VIDEO_WIDE); document.body.classList.toggle('captions', VIDEO_CAPTIONS);
+}
 else requestAnimationFrame(loop);
 
 // Hook for checking the physics from the browser console.
@@ -1604,7 +1618,11 @@ window.foucault = {
       chapter: ci + 1, title: ch.title, start: CH_START[ci] + ch.starts[bi], dur: b.dur,
       text: shown(b), clip: fnv1a(spoken(shown(b)))
     }))),
-    frame(f, dt) { mode = 'film'; playing = false; ft = f; fitCamera(dt); draw(); }
+    // text: the caption to show in this frame (with ?captions), or '' for none.
+    frame(f, dt, text) {
+      mode = 'film'; playing = false; ft = f; fitCamera(dt); draw();
+      const ct = $('capText'); if (text != null && ct.textContent !== text) ct.textContent = text;
+    }
   }
 };
 })();

@@ -73,7 +73,10 @@ After a caption changes:
 - `node tools/render-video.mjs --wide`: horizontal, 1920 × 1080 at 60 frames per second,
   with the desktop layout and the numbers panel. About 2 hours.
 
-The captions are not in the picture; use the `.srt` files. The script opens
+Add `--captions` to put the captions in the picture of the vertical videos, one sentence at a
+time (most people watch Shorts with the sound off). Without it, use the `.srt` files.
+`tools/upload-youtube.py` uploads the chapter videos to YouTube as Shorts, with the texts in
+`publish/youtube-shorts.json`; run it without `--yes` first to see what it would send. The script opens
 `index.html?video` (or `?video=wide`) in Chrome without a window, draws each frame at its
 exact time, and sends the pictures to ffmpeg. It needs Node 22 or later, Google Chrome, and
 ffmpeg. For a short test, use `--from` and `--to` with times in seconds, for example `--to 20`.
