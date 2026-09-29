@@ -76,7 +76,9 @@ After a caption changes:
 Add `--captions` to put the captions in the picture of the vertical videos, one sentence at a
 time (most people watch Shorts with the sound off). Without it, use the `.srt` files.
 `tools/upload-youtube.py` uploads the chapter videos to YouTube as Shorts, with the texts in
-`publish/youtube-shorts.json`; run it without `--yes` first to see what it would send. The script opens
+`publish/youtube-shorts.json`; run it without `--yes` first to see what it would send.
+With `--meta publish/youtube-film.json --state video/youtube-film-state.json` it uploads the
+horizontal film instead, with chapter times in its description. The script opens
 `index.html?video` (or `?video=wide`) in Chrome without a window, draws each frame at its
 exact time, and sends the pictures to ffmpeg. It needs Node 22 or later, Google Chrome, and
 ffmpeg. For a short test, use `--from` and `--to` with times in seconds, for example `--to 20`.
