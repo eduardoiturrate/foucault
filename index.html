@@ -202,6 +202,17 @@
     #sandbox.collapsed > :not(.sbHead):not(#sbLatField) { display: none; }
   }
 
+  /* Video for social apps (index.html?video): no controls and no captions (they go in an .srt file).
+     The top is lower, because the apps put their own tabs over the top of the picture. */
+  body.video:not(.wide) #bottom { display: none; }
+  body.video:not(.wide) #hud, body.video:not(.wide) #insetFrame { top: 64px; }
+  body.video:not(.wide) h1 { font-size: 25px; }
+  body.video:not(.wide) #filmTag .eyebrow { font-size: 13px; }
+  body.video:not(.wide):not(.started) #filmTag .eyebrow { font-size: 32px; }
+  body.video:not(.wide):not(.started) #hudSub { font-size: 17px; }
+  /* Horizontal video (index.html?video=wide): the desktop layout without captions and controls. */
+  body.video.wide #caption, body.video.wide #transport, body.video.wide .chip:last-child { display: none; }
+
   /* Small phones (320–360 px wide): keep the chapter buttons and the controls on one line each. */
   @media (max-width: 360px) {
     #transport { gap: 6px; }
@@ -1334,6 +1345,11 @@ function resize() {
 const TAN_HALF = Math.tan(22.5 * D2R), MARGIN = 1.08;
 const fit = { area: null, k: 1, px: 1 };   // px: screen pixels per unit of (distance × tan)
 function freeArea() {
+  if (VIDEO && !VIDEO_WIDE) {
+    // Social apps cover the bottom of the picture with their own text and buttons.
+    const top = $('hud').getBoundingClientRect().bottom + 4;
+    return { x: 0, y: top, w: viewW, h: viewH * 0.8 - top };
+  }
   if (!phone) return { x: 0, y: 0, w: viewW, h: viewH };
   const bottom = $('bottom').getBoundingClientRect(), hud = $('hud').getBoundingClientRect();
   if (SIDEWAYS_Q.matches) {
@@ -1516,7 +1532,7 @@ function draw() {
     if (playing) say(shown(beat));
   }
   // Once the film has started, the phone layout shows the chapter title in place of the film title.
-  if (!started && (playing || mode === 'sandbox' || ft > 0.05)) { started = true; document.body.classList.add('started'); }
+  if (!started && (VIDEO ? ft >= CH[0].starts[1] : playing || mode === 'sandbox' || ft > 0.05)) { started = true; document.body.classList.add('started'); }
   if (ci !== lastChapterKey) {
     lastChapterKey = ci;
     setText('chTitle', ch.title);
@@ -1560,7 +1576,11 @@ function loop(now) {
   draw();
 }
 ft = 0.001;
-requestAnimationFrame(loop);
+// Video mode (index.html?video): no loop and no sound. tools/render-video.mjs sets each frame's time.
+const VIDEO = new URLSearchParams(location.search).has('video');
+const VIDEO_WIDE = new URLSearchParams(location.search).get('video') === 'wide';
+if (VIDEO) { document.body.classList.add('video'); document.body.classList.toggle('wide', VIDEO_WIDE); voiceOn = false; }
+else requestAnimationFrame(loop);
 
 // Hook for checking the physics from the browser console.
 window.foucault = {
@@ -1577,7 +1597,15 @@ window.foucault = {
     return [...new Set(out)];
   },
   clipName: s => fnv1a(s),
-  voiceState: () => ({ clip: audio.src.split('/').pop(), paused: audio.paused, time: audio.currentTime, rate: audio.playbackRate, speaking })
+  voiceState: () => ({ clip: audio.src.split('/').pop(), paused: audio.paused, time: audio.currentTime, rate: audio.playbackRate, speaking }),
+  // For tools/render-video.mjs: the steps of chapters 1 to 7, and drawing one frame at film time f.
+  video: {
+    timeline: () => CH.flatMap((ch, ci) => ch.beats.map((b, bi) => ({
+      chapter: ci + 1, title: ch.title, start: CH_START[ci] + ch.starts[bi], dur: b.dur,
+      text: shown(b), clip: fnv1a(spoken(shown(b)))
+    }))),
+    frame(f, dt) { mode = 'film'; playing = false; ft = f; fitCamera(dt); draw(); }
+  }
 };
 })();
 </script>

@@ -45,6 +45,7 @@ Earth's turn is sped up compared with the swing.
   text, and `index.json`, the list of clips. A caption with no clip is read by the
   browser's own speech engine.
 - `tools/make-narration.py`: makes the clips with ElevenLabs text to speech.
+- `tools/render-video.mjs`: renders the film as a video with sound, vertical or horizontal.
 
 No build step. Open `index.html` through any web server.
 
@@ -60,6 +61,22 @@ After a caption changes:
 3. Run `python tools/make-narration.py --dry-run` to see how many characters will be sent,
    then `python tools/make-narration.py`. Only new or changed captions are sent, and
    clips that no caption uses are deleted. The voice is Brian.
+
+## Video for social apps
+
+`tools/render-video.mjs` renders chapters 1 to 7 as a video with the recorded narration
+(H.264 and AAC in MP4), and an `.srt` subtitle file for each video. The files go into
+`video/`, which git ignores.
+
+- `node tools/render-video.mjs`: vertical, 1080 × 1920 at 30 frames per second, with the
+  phone layout. Also one video per chapter (1 to 2.5 minutes each). About 1 hour.
+- `node tools/render-video.mjs --wide`: horizontal, 1920 × 1080 at 60 frames per second,
+  with the desktop layout and the numbers panel. About 2 hours.
+
+The captions are not in the picture; use the `.srt` files. The script opens
+`index.html?video` (or `?video=wide`) in Chrome without a window, draws each frame at its
+exact time, and sends the pictures to ffmpeg. It needs Node 22 or later, Google Chrome, and
+ffmpeg. For a short test, use `--from` and `--to` with times in seconds, for example `--to 20`.
 
 ## Credits
 
