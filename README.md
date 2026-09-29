@@ -40,13 +40,31 @@ Earth's turn is sped up compared with the swing.
 
 - `index.html`: the whole page (HTML, CSS and JavaScript).
 - `geo-data.js`: coastlines and country borders, encoded as 16-bit integers.
+- `narration/`: the recorded voice. One MP3 per caption, named by a hash of the spoken
+  text, and `index.json`, the list of clips. A caption with no clip is read by the
+  browser's own speech engine.
+- `tools/make-narration.py`: makes the clips with ElevenLabs text to speech.
 
 No build step. Open `index.html` through any web server.
+
+## Updating the narration
+
+After a caption changes:
+
+1. Open the page, and in the browser console run
+   `copy(JSON.stringify(foucault.captions(), null, 1))`.
+   Paste the result into `narration/captions.json`.
+2. Put your ElevenLabs API key in the `ELEVENLABS_API_KEY` environment variable or in
+   the file `~/.elevenlabs_key` (never in the repository).
+3. Run `python tools/make-narration.py --dry-run` to see how many characters will be sent,
+   then `python tools/make-narration.py`. Only new or changed captions are sent, and
+   clips that no caption uses are deleted. The voice is Brian.
 
 ## Credits
 
 - Coastlines and borders: [Natural Earth](https://www.naturalearthdata.com/) 1:50m
   (public domain), through the [world-atlas](https://github.com/topojson/world-atlas) package.
+- Narration: voice made with [ElevenLabs](https://elevenlabs.io/) text to speech.
 - 3D rendering: [three.js](https://threejs.org/) r128 (MIT licence), loaded from cdnjs.
 - Fonts: Atkinson Hyperlegible, Fraunces and JetBrains Mono (SIL Open Font License),
   loaded from Google Fonts.

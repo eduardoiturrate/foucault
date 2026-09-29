@@ -290,7 +290,7 @@
     <select id="speed" aria-label="Playback speed">
       <option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
     </select>
-    <button class="tbtn" id="voice" title="Read the captions aloud">Voice: off</button>
+    <button class="tbtn" id="voice" title="Read the captions aloud (voice recorded with ElevenLabs)">Voice: off</button>
     <span class="hint">Drag: rotate · right-drag: move · scroll: zoom · double-click: reset</span>
   </div>
 </div>
@@ -1092,18 +1092,42 @@ function spoken(s) {
   return s.replace(/Ω/g, 'omega').replace(/sin\(latitude\)/g, 'sine of the latitude').replace(/sin (\d)/g, 'sine $1')
     .replace(/(\d)°/g, '$1 degrees').replace(/×/g, ' times ').replace(/÷/g, ' divided by ')
     .replace(/(\d) h\b/g, '$1 hours').replace(/(\d) kg\b/g, '$1 kilogram').replace(/(\d) m\b/g, '$1 metre')
+    .replace(/(\d) mm\b/g, '$1 millimetres').replace(/ = /g, ' equals ')
     .replace(/–/g, ' ').replace(/"/g, '');
 }
+// Recorded narration: one MP3 per caption, named by a hash of the spoken text
+// (made by tools/make-narration.py). A caption with no recording is read by the
+// browser's own speech engine instead.
+function fnv1a(s) {
+  let h = 0x811c9dc5;
+  for (const b of new TextEncoder().encode(s)) h = Math.imul(h ^ b, 0x01000193) >>> 0;
+  return h.toString(16).padStart(8, '0');
+}
+let clips = new Set();
+fetch('narration/index.json').then(r => r.ok ? r.json() : []).then(a => { clips = new Set(a); }).catch(() => {});
+const audio = new Audio();
+// Only "ended" and "error": a "pause" from the previous clip can arrive after the next one has started.
+audio.addEventListener('ended', () => { speaking = false; });
+audio.addEventListener('error', () => { speaking = false; });
 function say(text) {
-  if (!synth || !voiceOn) return;
-  synth.cancel();
-  const u = new SpeechSynthesisUtterance(spoken(text));
+  if (!voiceOn) return;
+  hush();
+  const s = spoken(text), id = fnv1a(s);
+  if (clips.has(id)) {
+    audio.src = `narration/${id}.mp3`;
+    audio.defaultPlaybackRate = audio.playbackRate = speed;
+    speaking = true;
+    audio.play().catch(() => { speaking = false; });
+    return;
+  }
+  if (!synth) return;
+  const u = new SpeechSynthesisUtterance(s);
   if (voice) u.voice = voice;
   u.rate = clamp(0.95 * speed, 0.7, 1.5);
   u.onend = u.onerror = () => { speaking = false; };
   speaking = true; synth.speak(u);
 }
-function hush() { if (synth) synth.cancel(); speaking = false; }
+function hush() { if (synth) synth.cancel(); audio.pause(); speaking = false; }
 
 // ---------- UI wiring ----------
 const chipsEl = $('chips');
@@ -1153,10 +1177,10 @@ $('play').addEventListener('click', () => setPlaying(!playing));
 $('prev').addEventListener('click', () => stepBeat(-1));
 $('next').addEventListener('click', () => stepBeat(1));
 scrub.addEventListener('input', () => { hush(); mode = 'film'; ft = parseFloat(scrub.value); lastBeatKey = ''; });
-$('speed').addEventListener('change', e => { speed = parseFloat(e.target.value); });
+$('speed').addEventListener('change', e => { speed = parseFloat(e.target.value); audio.defaultPlaybackRate = audio.playbackRate = speed; });
 $('voice').addEventListener('click', () => {
   voiceOn = !voiceOn; $('voice').textContent = voiceOn ? 'Voice: on' : 'Voice: off';
-  if (!synth) { $('voice').textContent = 'Voice: not available'; voiceOn = false; return; }
+  if (!synth && !clips.size) { $('voice').textContent = 'Voice: not available'; voiceOn = false; return; }
   if (voiceOn && playing) { const c = current(); say(shown(c.ch.beats[beatIndex(c.ch, c.t)])); } else hush();
 });
 window.addEventListener('keydown', e => {
@@ -1507,7 +1531,15 @@ window.foucault = {
     ch.P = makeP(ch.lat, ch.T, hours + 1);
     return { simulated: ch.P(hours) * R2D, expected: 360 * Math.sin(latDeg * D2R) * hours / SID };
   },
-  coneAngle(latDeg) { return coneInfo(latDeg, 1).alpha * R2D; }
+  coneAngle(latDeg) { return coneInfo(latDeg, 1).alpha * R2D; },
+  // Every text the voice reads, in film order. Input for tools/make-narration.py.
+  captions() {
+    const out = [];
+    for (const ch of ALL) for (const b of ch.beats) { out.push(spoken(b.text)); if (b.phone) out.push(spoken(b.phone)); }
+    return [...new Set(out)];
+  },
+  clipName: s => fnv1a(s),
+  voiceState: () => ({ clip: audio.src.split('/').pop(), paused: audio.paused, time: audio.currentTime, rate: audio.playbackRate, speaking })
 };
 })();
 </script>
