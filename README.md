@@ -17,10 +17,11 @@ The film explains every latitude in between, in eight chapters:
 7. Seen from the floor: the Coriolis push, and the star and petal patterns in the sand
 8. Try it yourself: any latitude, speed, view and way of starting the swing
 
-You can pause at any moment, rotate the view, and change the latitude.
+You can pause at any moment, rotate the view, and change the latitude. The voice is on
+at the start. The Text button hides the captions, to leave more room for the 3D scene.
 
-On a phone, the page hides the numbers panel and some controls, and fits the 3D scene
-in the space that is left.
+On a phone, the page shows the film title until the film starts. It hides the numbers panel
+and some controls, and fits the 3D scene in the space that is left.
 
 ## Physics
 

@@ -53,6 +53,10 @@
   }
   #readout dt { color: var(--muted); }
   #readout dd { margin: 0; text-align: right; }
+  /* The film name, at the top left where the centred title is not shown. */
+  #filmTag { display: none; }
+  body.sandbox #filmTag { display: block; }
+  #hudSub { display: none; margin: 4px 0 0; font-size: 13px; line-height: 1.35; color: var(--muted); text-wrap: balance; }
   #readout .note { grid-column: 1 / -1; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--muted); font: 11.5px/1.45 var(--sans); }
 
   /* ---------- film title, top centre ---------- */
@@ -66,7 +70,7 @@
   /* Hidden when the free space between the side panels is too narrow for it
      (720 px of panels + 420 px of title), and always in "Try it", where the right side is full. */
   body.sandbox #filmTitle { display: none; }
-  @media (max-width: 1140px) { #filmTitle { display: none; } }
+  @media (max-width: 1140px) { #filmTitle { display: none; } #filmTag { display: block; } }
 
   /* ---------- inset view ---------- */
   #insetFrame {
@@ -127,6 +131,8 @@
   #ticks { position: absolute; left: 0; right: 0; top: 50%; height: 14px; transform: translateY(-50%); pointer-events: none; }
   #ticks i { position: absolute; top: 0; width: 1px; height: 14px; background: rgba(150,168,200,.45); }
   #clock { font: 12.5px/1 var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); min-width: 92px; text-align: right; }
+  .tbtn.toggle[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); background: var(--brass-soft); }
+  body.noText #caption { display: none; }
   #speed { background: var(--panel-solid); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; font-size: 14px; }
   .hint { font-size: 12.5px; color: var(--muted); }
 
@@ -159,6 +165,12 @@
     #hud { left: 12px; top: calc(10px + env(safe-area-inset-top, 0px)); width: calc(100vw - 24px - 36vw - 10px); gap: 0; }
     h1 { font-size: 19px; margin-top: 4px; }
     #hud { text-shadow: 0 1px 3px #000, 0 0 10px #000; }
+    /* Before the film starts: the film name and what it is about, large. */
+    #filmTag { display: block; }
+    body:not(.started) #hud { width: calc(100vw - 24px); }
+    body:not(.started) #filmTag .eyebrow { font: 560 24px/1.15 var(--serif); letter-spacing: 0; text-transform: none; color: var(--text); }
+    body:not(.started) #hudSub { display: block; font-size: 14px; }
+    body:not(.started) #chTitle { display: none; }
     #readout, #filmTitle, .hint, #clock, #speed, #transport .wide { display: none; }
     #insetFrame { right: 12px; top: calc(10px + env(safe-area-inset-top, 0px)); width: 36vw; }
     body.sandbox #insetFrame { right: 12px; width: 36vw; }
@@ -188,6 +200,14 @@
     #sandbox.collapsed > :not(.sbHead):not(#sbLatField) { display: none; }
   }
 
+  /* Small phones (320–360 px wide): keep the chapter buttons and the controls on one line each. */
+  @media (max-width: 360px) {
+    #transport { gap: 6px; }
+    #transport .tbtn { padding: 7px 9px; }
+    #play { min-width: 72px; }
+    .chip b { width: 22px; height: 22px; }
+  }
+
   /* Phone held sideways: text and controls on the left, 3D scene on the right. */
   @media (max-height: 500px) and (orientation: landscape) {
     #hud { left: calc(12px + env(safe-area-inset-left, 0px)); width: min(300px, 40vw); }
@@ -204,6 +224,8 @@
     #scrubWrap { order: 0; flex: 1 1 auto; }
     #voice { margin-left: 0; }
     #capText { font-size: 14px; min-height: 0; }
+    body.noText:not(.sandbox) #bottom { grid-template-columns: 1fr; }
+    body.noText:not(.sandbox) #chips, body.noText:not(.sandbox) #transport { grid-column: 1; }
     #sandbox { max-height: calc(100vh - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
   }
 </style>
@@ -220,7 +242,7 @@
 
 <div id="hud">
   <div>
-    <div class="eyebrow" id="chNum">Chapter 1 of 8</div>
+    <div id="filmTag"><div class="eyebrow">Foucault Between the Poles</div><p id="hudSub">Why the swing turns 360° × sin(latitude) per day</p></div>
     <h1 id="chTitle">The question</h1>
   </div>
   <dl id="readout">
@@ -290,7 +312,8 @@
     <select id="speed" aria-label="Playback speed">
       <option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
     </select>
-    <button class="tbtn" id="voice" title="Read the captions aloud (voice recorded with ElevenLabs)">Voice: off</button>
+    <button class="tbtn toggle" id="voice" aria-pressed="true" title="Read the captions aloud (voice recorded with ElevenLabs)">Voice</button>
+    <button class="tbtn toggle" id="textBtn" aria-pressed="true" title="Show or hide the caption text">Text</button>
     <span class="hint">Drag: rotate · right-drag: move · scroll: zoom · double-click: reset</span>
   </div>
 </div>
@@ -1057,7 +1080,10 @@ const ALL = CH.concat([SANDBOX]);
 // ======================================================================
 const $ = id => document.getElementById(id);
 let mode = 'film', ft = 0, playing = false, speed = 1, lastNow = performance.now();
-let voiceOn = false, speaking = false, voice = null;
+// Choices each viewer keeps in this browser. If storage is blocked, the defaults apply.
+const pref = (k, d) => { try { const v = localStorage.getItem('foucault.' + k); return v == null ? d : v === '1'; } catch (e) { return d; } };
+const setPref = (k, v) => { try { localStorage.setItem('foucault.' + k, v ? '1' : '0'); } catch (e) { /* not kept */ } };
+let voiceOn = pref('voice', true), textOn = pref('text', true), speaking = false, voice = null, started = false;
 const synth = window.speechSynthesis || null;
 const user = { yaw: 0, pitch: 0, zoom: 1, zoomTo: 1, panX: 0, panY: 0 };
 let lastChapterKey = -1, lastBeatKey = '';
@@ -1178,11 +1204,17 @@ $('prev').addEventListener('click', () => stepBeat(-1));
 $('next').addEventListener('click', () => stepBeat(1));
 scrub.addEventListener('input', () => { hush(); mode = 'film'; ft = parseFloat(scrub.value); lastBeatKey = ''; });
 $('speed').addEventListener('change', e => { speed = parseFloat(e.target.value); audio.defaultPlaybackRate = audio.playbackRate = speed; });
+function syncToggles() {
+  $('voice').setAttribute('aria-pressed', voiceOn); $('textBtn').setAttribute('aria-pressed', textOn);
+  document.body.classList.toggle('noText', !textOn);
+}
 $('voice').addEventListener('click', () => {
-  voiceOn = !voiceOn; $('voice').textContent = voiceOn ? 'Voice: on' : 'Voice: off';
-  if (!synth && !clips.size) { $('voice').textContent = 'Voice: not available'; voiceOn = false; return; }
+  if (!synth && !clips.size) { $('voice').textContent = 'Voice: not available'; voiceOn = false; syncToggles(); return; }
+  voiceOn = !voiceOn; setPref('voice', voiceOn); syncToggles();
   if (voiceOn && playing) { const c = current(); say(shown(c.ch.beats[beatIndex(c.ch, c.t)])); } else hush();
 });
+$('textBtn').addEventListener('click', () => { textOn = !textOn; setPref('text', textOn); syncToggles(); });
+syncToggles();
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
   if (e.code === 'Space') { e.preventDefault(); setPlaying(!playing); }
@@ -1479,9 +1511,11 @@ function draw() {
     setText('capMeta', ch.sandbox ? 'Free exploration' : `Step ${bi + 1} of ${ch.beats.length}`);
     if (playing) say(shown(beat));
   }
+  // Once the film has started, the phone layout shows the chapter title in place of the film title.
+  if (!started && (playing || mode === 'sandbox' || ft > 0.05)) { started = true; document.body.classList.add('started'); }
   if (ci !== lastChapterKey) {
     lastChapterKey = ci;
-    setText('chNum', `Chapter ${ci + 1} of ${ALL.length}`); setText('chTitle', ch.title);
+    setText('chTitle', ch.title);
     chipEls.forEach((c, i) => c.classList.toggle('on', i === ci));
     $('sandbox').hidden = !ch.sandbox; document.body.classList.toggle('sandbox', !!ch.sandbox);
   }
