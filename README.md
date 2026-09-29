@@ -19,6 +19,9 @@ The film explains every latitude in between, in eight chapters:
 
 You can pause at any moment, rotate the view, and change the latitude.
 
+On a phone, the page hides the numbers panel and some controls, and fits the 3D scene
+in the space that is left.
+
 ## Physics
 
 The pendulum motion is the exact solution of the linear Foucault equations in the

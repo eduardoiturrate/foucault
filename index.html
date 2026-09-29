@@ -149,17 +149,62 @@
   #coneMsg { font-size: 13px; color: var(--push); margin: 0; }
   body.sandbox #insetFrame { right: calc(16px + min(310px, calc(100vw - 32px)) + 12px); width: min(22vw, 240px); }
 
-  @media (max-width: 760px) {
-    #readout { font-size: 11px; padding: 8px 10px; }
-    #readout .note { display: none; }
-    #insetFrame { width: 34vw; }
-    #caption { padding: 10px 12px; }
-    .chip { padding: 4px 6px; font-size: 0; gap: 0; }
-    .chip b { font-size: 11px; }
-    .hint { display: none; }
-    #sandbox { top: auto; bottom: 170px; max-height: 42vh; }
-    body.sandbox #hud { display: none; }
-    body.sandbox #insetFrame { right: 16px; width: 34vw; }
+  .sbHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #sbMore { display: none; }
+
+  /* ---------- phones ----------
+     The same test is in the script (PHONE_Q), which centres the 3D scene in the space
+     these panels leave free. Change both together. */
+  @media (max-width: 760px), (max-height: 500px) {
+    #hud { left: 12px; top: calc(10px + env(safe-area-inset-top, 0px)); width: calc(100vw - 24px - 36vw - 10px); gap: 0; }
+    h1 { font-size: 19px; margin-top: 4px; }
+    #hud { text-shadow: 0 1px 3px #000, 0 0 10px #000; }
+    #readout, #filmTitle, .hint, #clock, #speed, #transport .wide { display: none; }
+    #insetFrame { right: 12px; top: calc(10px + env(safe-area-inset-top, 0px)); width: 36vw; }
+    body.sandbox #insetFrame { right: 12px; width: 36vw; }
+    body.sandbox #hud, body.sandbox #caption { display: none; }
+    .tag { font-size: 11px; padding: 2px 5px; }
+    .tag.big { font-size: 13px; padding: 3px 7px; }
+
+    #bottom { gap: 8px; padding: 0 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
+    #caption { width: 100%; padding: 9px 12px 10px; gap: 4px; }
+    /* Room for 4 lines, so most steps do not change the height of the caption. */
+    #capText { font-size: 15px; line-height: 1.45; min-height: 5.8em; }
+    #chips { gap: 5px; }
+    .chip { padding: 3px; font-size: 0; gap: 0; }
+    .chip b { font-size: 12px; width: 26px; height: 26px; }
+    #transport { gap: 8px; padding: 7px 8px; }
+    #transport .tbtn { padding: 7px 12px; }
+    #play { min-width: 90px; }
+    #voice { margin-left: auto; }
+    #scrubWrap { order: 1; flex: 1 1 100%; min-width: 0; height: 26px; }
+
+    /* "Try it" controls: in the place of the caption, closed to the latitude until "More". */
+    #sandbox { position: static; width: auto; max-height: 46vh; padding: 10px 12px; gap: 10px; }
+    #sandbox h2 { font-size: 17px; }
+    #sbMore { display: inline-block; padding: 4px 10px; }
+    .seg { padding: 6px 7px; font-size: 12.5px; }
+    .row { gap: 5px; }
+    #sandbox.collapsed > :not(.sbHead):not(#sbLatField) { display: none; }
+  }
+
+  /* Phone held sideways: text and controls on the left, 3D scene on the right. */
+  @media (max-height: 500px) and (orientation: landscape) {
+    #hud { left: calc(12px + env(safe-area-inset-left, 0px)); width: min(300px, 40vw); }
+    h1 { font-size: 17px; }
+    #insetFrame { width: 40vh; }
+    body.sandbox #insetFrame { width: 40vh; }
+    #bottom {
+      grid-template-columns: min(300px, 40vw) 1fr; grid-template-rows: 1fr auto auto; align-items: end; column-gap: 10px;
+      padding-left: calc(12px + env(safe-area-inset-left, 0px)); padding-right: calc(12px + env(safe-area-inset-right, 0px));
+    }
+    #caption, #sandbox { grid-column: 1; grid-row: 1 / 4; }
+    #chips { grid-column: 2; grid-row: 2; }
+    #transport { grid-column: 2; grid-row: 3; flex-wrap: nowrap; }
+    #scrubWrap { order: 0; flex: 1 1 auto; }
+    #voice { margin-left: 0; }
+    #capText { font-size: 14px; min-height: 0; }
+    #sandbox { max-height: calc(100vh - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
   }
 </style>
 </head>
@@ -189,58 +234,57 @@
   </dl>
 </div>
 
-<aside id="sandbox" hidden>
-  <h2>Try it yourself</h2>
-  <div class="field">
-    <label for="sbLat">Latitude <output id="sbLatOut">48.85° N</output></label>
-    <input id="sbLat" type="range" min="-90" max="90" step="0.25" value="48.85">
-    <div class="row" id="sbPresets">
-      <button class="seg" data-lat="-90" data-lon="0">South Pole</button>
-      <button class="seg" data-lat="-33.87" data-lon="151.21">Sydney</button>
-      <button class="seg" data-lat="0" data-lon="-78.47">Equator</button>
-      <button class="seg" data-lat="48.85" data-lon="2.35">Paris</button>
-      <button class="seg" data-lat="90" data-lon="0">North Pole</button>
-    </div>
-  </div>
-  <div class="field">
-    <label for="sbSpeed">Earth hours per second <output id="sbSpeedOut">1.0 h</output></label>
-    <input id="sbSpeed" type="range" min="0.25" max="6" step="0.25" value="1">
-  </div>
-  <div class="field">
-    <span class="lbl">View</span>
-    <div class="row" id="sbViews">
-      <button class="seg on" data-view="floor">Floor</button>
-      <button class="seg" data-view="top">From above</button>
-      <button class="seg" data-view="space">From space</button>
-      <button class="seg" data-view="cone">Cone</button>
-    </div>
-  </div>
-  <div class="field" id="sbUnrollField" hidden>
-    <label for="sbUnroll">Unroll the cone <output id="sbUnrollOut">0 %</output></label>
-    <input id="sbUnroll" type="range" min="0" max="1" step="0.01" value="0">
-    <p id="coneMsg" hidden>The cone view works up to 89° from the Equator. Closer to the pole the cone is too small to show.</p>
-  </div>
-  <div class="field">
-    <span class="lbl">How the swing starts</span>
-    <div class="row" id="sbStarts">
-      <button class="seg on" data-start="rest">Released from rest</button>
-      <button class="seg" data-start="push">Pushed from the centre</button>
-    </div>
-  </div>
-  <label class="check"><input id="sbSplit" type="checkbox"> Show Earth's spin split into two parts</label>
-  <button class="tbtn" id="sbRestart">Restart the swing</button>
-</aside>
-
 <div id="bottom">
+  <aside id="sandbox" class="collapsed" hidden>
+    <div class="sbHead"><h2>Try it yourself</h2><button class="tbtn" id="sbMore" aria-expanded="false" aria-controls="sandbox">More ▾</button></div>
+    <div class="field" id="sbLatField">
+      <label for="sbLat">Latitude <output id="sbLatOut">48.85° N</output></label>
+      <input id="sbLat" type="range" min="-90" max="90" step="0.25" value="48.85">
+      <div class="row" id="sbPresets">
+        <button class="seg" data-lat="-90" data-lon="0">South Pole</button>
+        <button class="seg" data-lat="-33.87" data-lon="151.21">Sydney</button>
+        <button class="seg" data-lat="0" data-lon="-78.47">Equator</button>
+        <button class="seg" data-lat="48.85" data-lon="2.35">Paris</button>
+        <button class="seg" data-lat="90" data-lon="0">North Pole</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="sbSpeed">Earth hours per second <output id="sbSpeedOut">1.0 h</output></label>
+      <input id="sbSpeed" type="range" min="0.25" max="6" step="0.25" value="1">
+    </div>
+    <div class="field">
+      <span class="lbl">View</span>
+      <div class="row" id="sbViews">
+        <button class="seg on" data-view="floor">Floor</button>
+        <button class="seg" data-view="top">From above</button>
+        <button class="seg" data-view="space">From space</button>
+        <button class="seg" data-view="cone">Cone</button>
+      </div>
+    </div>
+    <div class="field" id="sbUnrollField" hidden>
+      <label for="sbUnroll">Unroll the cone <output id="sbUnrollOut">0 %</output></label>
+      <input id="sbUnroll" type="range" min="0" max="1" step="0.01" value="0">
+      <p id="coneMsg" hidden>The cone view works up to 89° from the Equator. Closer to the pole the cone is too small to show.</p>
+    </div>
+    <div class="field">
+      <span class="lbl">How the swing starts</span>
+      <div class="row" id="sbStarts">
+        <button class="seg on" data-start="rest">Released from rest</button>
+        <button class="seg" data-start="push">Pushed from the centre</button>
+      </div>
+    </div>
+    <label class="check"><input id="sbSplit" type="checkbox"> Show Earth's spin split into two parts</label>
+    <button class="tbtn" id="sbRestart">Restart the swing</button>
+  </aside>
   <div id="caption" aria-live="polite">
     <div id="capMeta">Step 1 of 6</div>
     <p id="capText"></p>
   </div>
   <nav id="chips" aria-label="Chapters"></nav>
   <div id="transport">
-    <button class="tbtn" id="prev" title="Previous step (Left arrow)">◀ Back</button>
+    <button class="tbtn" id="prev" title="Previous step (Left arrow)" aria-label="Back">◀<span class="wide"> Back</span></button>
     <button class="tbtn" id="play" title="Play or pause (Space)">▶ Play</button>
-    <button class="tbtn" id="next" title="Next step (Right arrow)">Next ▶</button>
+    <button class="tbtn" id="next" title="Next step (Right arrow)" aria-label="Next"><span class="wide">Next </span>▶</button>
     <div id="scrubWrap"><div id="ticks"></div><input id="scrub" type="range" min="0" max="100" step="0.01" value="0" aria-label="Position in the film"></div>
     <span id="clock">0:00 / 0:00</span>
     <select id="speed" aria-label="Playback speed">
@@ -794,7 +838,8 @@ CH.push(def({
     `In Paris, the swing needs about ${PARIS_PERIOD} hours to turn once all the way round.`,
     'At the North Pole it would need one day of 23.93 hours. At the Equator it would not turn at all.',
     `So why ${PARIS_PERIOD} hours in Paris, and not 24? This film answers that question in small steps.`,
-    'Note: the pendulum is drawn far larger than real, and time is sped up. The panel at the top left always shows the real numbers.'
+    { text: 'Note: the pendulum is drawn far larger than real, and time is sped up. The panel at the top left always shows the real numbers.',
+      phone: 'Note: the pendulum is drawn far larger than real, and time is sped up.' }
   ],
   make: b => ({
     lat: () => PARIS, T: t => 0.45 * t, swing: () => ({ t0: 0, psi0: 90 }),
@@ -979,7 +1024,8 @@ const CH_START = []; { let s = 0; for (const c of CH) { CH_START.push(s); s += c
 const SB = { lat: PARIS, lon: PARIS_LON, start: 'rest', swingT0: 0, psi0: 90, hps: 1, view: 'floor', split: false, unroll: 0, t: 0, Tb: 0, tb: 0 };
 const SANDBOX = {
   title: 'Try it yourself', short: 'Try it', sandbox: true,
-  beats: [{ text: 'Now try it yourself. Change the latitude, the speed of the Earth, and the view. Every number in the panel at the top left follows your choices.' }],
+  beats: [{ text: 'Now try it yourself. Change the latitude, the speed of the Earth, and the view. Every number in the panel at the top left follows your choices.',
+           phone: 'Now try it yourself. Change the latitude. Tap More to change the speed of the Earth and the view.' }],
   starts: [0, Infinity],
   lat: () => SB.lat,
   lon: () => SB.lon,
@@ -1015,6 +1061,14 @@ let voiceOn = false, speaking = false, voice = null;
 const synth = window.speechSynthesis || null;
 const user = { yaw: 0, pitch: 0, zoom: 1, zoomTo: 1, panX: 0, panY: 0 };
 let lastChapterKey = -1, lastBeatKey = '';
+
+// Phone layout. The same tests are in the CSS; change both together.
+const PHONE_Q = matchMedia('(max-width: 760px), (max-height: 500px)');
+const SIDEWAYS_Q = matchMedia('(max-height: 500px) and (orientation: landscape)');
+let phone = PHONE_Q.matches;
+PHONE_Q.addEventListener('change', () => { phone = PHONE_Q.matches; lastBeatKey = ''; });
+// On a phone there is no numbers panel, so some captions have a shorter version.
+const shown = beat => (phone && beat.phone) || beat.text;
 
 function locate(f) {
   let ci = CH.length - 1;
@@ -1076,7 +1130,7 @@ function setPlaying(p) {
   playing = p;
   $('play').textContent = p ? '❚❚ Pause' : '▶ Play';
   if (!p) hush();
-  else if (voiceOn) { const c = current(); say(c.ch.beats[beatIndex(c.ch, c.t)].text); }
+  else if (voiceOn) { const c = current(); say(shown(c.ch.beats[beatIndex(c.ch, c.t)])); }
 }
 function stepBeat(dir) {
   hush();
@@ -1103,7 +1157,7 @@ $('speed').addEventListener('change', e => { speed = parseFloat(e.target.value);
 $('voice').addEventListener('click', () => {
   voiceOn = !voiceOn; $('voice').textContent = voiceOn ? 'Voice: on' : 'Voice: off';
   if (!synth) { $('voice').textContent = 'Voice: not available'; voiceOn = false; return; }
-  if (voiceOn && playing) { const c = current(); say(c.ch.beats[beatIndex(c.ch, c.t)].text); } else hush();
+  if (voiceOn && playing) { const c = current(); say(shown(c.ch.beats[beatIndex(c.ch, c.t)])); } else hush();
 });
 window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
@@ -1140,13 +1194,16 @@ $('sbViews').addEventListener('click', e => { const v = e.target.dataset.view; i
 $('sbUnroll').addEventListener('input', e => { SB.unroll = parseFloat(e.target.value); syncSandboxUI(); });
 $('sbSplit').addEventListener('change', e => { SB.split = e.target.checked; });
 $('sbRestart').addEventListener('click', sbRestart);
+$('sbMore').addEventListener('click', e => {
+  const open = $('sandbox').classList.toggle('collapsed') === false;
+  e.currentTarget.textContent = open ? 'Less ▴' : 'More ▾'; e.currentTarget.setAttribute('aria-expanded', open);
+});
 $('sbStarts').addEventListener('click', e => { const v = e.target.dataset.start; if (!v) return; SB.start = v; sbRestart(); syncSandboxUI(); });
 syncSandboxUI();
 
 // camera drag / zoom
 // Left drag: rotate. Right drag (or Shift + left drag): move the view. Middle drag: zoom.
 const pointers = new Map(); let pinch0 = 0, zoom0 = 1;
-const PAN_PER_PX = 2 * Math.tan(22.5 * D2R);   // screen height in units of camera distance (45° field of view)
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 canvas.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
 canvas.addEventListener('pointerdown', e => {
@@ -1159,7 +1216,7 @@ canvas.addEventListener('pointermove', e => {
   const p = pointers.get(e.pointerId); if (!p) return;
   if (pointers.size === 1) {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
-    if (p.mode === 'pan') { user.panX -= dx * PAN_PER_PX / viewH; user.panY += dy * PAN_PER_PX / viewH; }
+    if (p.mode === 'pan') { user.panX -= dx / fit.px; user.panY += dy / fit.px; }
     else if (p.mode === 'zoom') user.zoom = user.zoomTo = clamp(user.zoom * Math.exp(dy * 0.005), 0.25, 4);
     else {
       user.yaw -= dx * 0.006;
@@ -1189,7 +1246,7 @@ function applyCam(cam, cObj, withUser) {
     off.applyAxisAngle(up, user.yaw);
     const right = off.clone().cross(up);
     if (right.lengthSq() > 1e-10) off.applyAxisAngle(right.normalize(), user.pitch);
-    off.multiplyScalar(user.zoom);
+    off.multiplyScalar(user.zoom * fit.k);
   }
   const target = cam.target.clone();
   if (withUser && (user.panX || user.panY)) {
@@ -1204,7 +1261,47 @@ function applyCam(cam, cObj, withUser) {
 function resize() {
   viewW = window.innerWidth; viewH = window.innerHeight;
   renderer.setSize(viewW, viewH, false);
-  camera.aspect = viewW / viewH; camera.updateProjectionMatrix();
+  fit.area = null;
+}
+
+// Where the main camera draws the scene. On a desktop: the whole window, 45° high.
+// On a phone the panels cover much of the screen. So the scene is centred in the part
+// that is still free, and made small enough to fit there:
+//   - 45° of view, plus a margin of 8 %, spans the height of the free part;
+//   - in a free part higher than wide, the camera moves back (k) until a square view
+//     fits its width, because the chapters were framed for a wide desktop window.
+// The free part eases toward its new size, so the scene does not jump when a caption
+// gets longer or the controls open.
+const TAN_HALF = Math.tan(22.5 * D2R), MARGIN = 1.08;
+const fit = { area: null, k: 1, px: 1 };   // px: screen pixels per unit of (distance × tan)
+function freeArea() {
+  if (!phone) return { x: 0, y: 0, w: viewW, h: viewH };
+  const bottom = $('bottom').getBoundingClientRect(), hud = $('hud').getBoundingClientRect();
+  if (SIDEWAYS_Q.matches) {
+    const r = $('chips').getBoundingClientRect();   // the right-hand column
+    return { x: r.left, y: 0, w: viewW - r.left, h: r.top - 4 };
+  }
+  const top = hud.height > 0 ? hud.bottom + 4 : 0;
+  return { x: 0, y: top, w: viewW, h: Math.max(80, bottom.top - top) };
+}
+function fitCamera(dt) {
+  const t = freeArea();
+  if (!fit.area) fit.area = t;
+  else { const a = 1 - Math.exp(-dt * 6); for (const k of ['x', 'y', 'w', 'h']) fit.area[k] += (t[k] - fit.area[k]) * a; }
+  const f = fit.area;
+  if (!phone) {
+    camera.clearViewOffset(); camera.fov = 45; camera.aspect = viewW / viewH;
+    fit.k = 1; fit.px = viewH / (2 * TAN_HALF);
+  } else {
+    // A larger virtual screen whose centre is the centre of the free part; the real screen is a window into it.
+    const cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+    const FW = 2 * Math.max(cx, viewW - cx), FH = 2 * Math.max(cy, viewH - cy);
+    fit.px = f.h / (2 * TAN_HALF * MARGIN);
+    fit.k = Math.max(1, f.h / f.w);
+    camera.fov = 2 * Math.atan(FH / (2 * fit.px)) * R2D; camera.aspect = FW / FH;
+    camera.setViewOffset(FW, FH, FW / 2 - cx, FH / 2 - cy, viewW, viewH);
+  }
+  camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', resize); resize();
 
@@ -1353,10 +1450,10 @@ function draw() {
   const key = mode + ':' + ci + ':' + bi;
   if (key !== lastBeatKey) {
     lastBeatKey = key;
-    const ct = $('capText'); ct.textContent = beat.text;
+    const ct = $('capText'); ct.textContent = shown(beat);
     ct.classList.remove('fade'); void ct.offsetWidth; ct.classList.add('fade');
     setText('capMeta', ch.sandbox ? 'Free exploration' : `Step ${bi + 1} of ${ch.beats.length}`);
-    if (playing) say(beat.text);
+    if (playing) say(shown(beat));
   }
   if (ci !== lastChapterKey) {
     lastChapterKey = ci;
@@ -1397,6 +1494,7 @@ function loop(now) {
       if (ft >= FILM_TOTAL) enterSandbox();
     } else SB.t += dt;
   }
+  fitCamera(dt);
   draw();
 }
 ft = 0.001;
