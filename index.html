@@ -837,7 +837,7 @@ function updateCone(lat, u, kShown, alpha, rec) {
     const x = xAt(k / 24), line = cone.hourLines[k];
     setLine(line, ci.map(ci.dMin, x), ci.map(ci.dMax, x));
     line.material.opacity = alpha * (k === 0 || k === 24 ? 0.95 : 0.22);
-    const recDeg = rec ? rec[k % 24] && rec[k % 24].deg : null;
+    const recDeg = rec ? rec[k] && rec[k].deg : null;
     if (rec ? recDeg == null : k > kShown) { cone.arrows[k].visible = false; continue; }
     const f = ci.frame(x);
     // swing direction, from east toward north
@@ -1459,22 +1459,26 @@ const insetFrame = $('insetFrame');
 const fmtClock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function setText(id, v) { const el = $(id); if (el._v !== v) { el.textContent = v; el._v = v; } }
 
-// The copies left behind on the cone in "Try it". at[k]: {T, deg} for hour mark k (0..23).
-const coneRec = { at: new Array(24).fill(null), lat: null, lastT: -1, startT: 0 };
+// The copies left behind on the cone in "Try it", for the current day only. A day starts each
+// time the pendulum crosses the line where the cone is cut open (hour mark 0), as in the film.
+// Copies from one trip around are parallel on the flat sheet; copies from two different trips
+// are not (each trip turns the swing by 360° × sin(latitude) relative to the sheet).
+// at[k]: {T, deg} for hour mark k (0..24); 24 is the cut again, at the end of the day.
+const coneRec = { at: new Array(25).fill(null), lat: null, lastT: -1, startT: 0 };
 function recordCone() {
   const T = SANDBOX.T(SB.t), H = SID / 24;
   if (SB.lat !== coneRec.lat || T < coneRec.lastT) {           // new latitude or a restart: start again
     coneRec.at.fill(null); coneRec.lat = SB.lat; coneRec.startT = T;
   }
   coneRec.lastT = T;
-  for (let k = 0; k < 24; k++) {
-    // the last time the pendulum was at hour mark k
-    const Tk = Math.floor((T - k * H) / SID) * SID + k * H;
-    const r = coneRec.at[k];
-    if (Tk < coneRec.startT - 1e-9 || (r && r.T >= Tk - 1e-9)) continue;
+  const day = Math.floor(T / SID + 1e-9) * SID;
+  for (let k = 0; k <= 24; k++) {
+    const Tk = day + k * H, r = coneRec.at[k];                   // when the pendulum is at mark k today
+    if (Tk > T + 1e-9 || Tk < coneRec.startT - 1e-9) { coneRec.at[k] = null; continue; }
+    if (r && Math.abs(r.T - Tk) < 1e-9) continue;               // already recorded
     // The swing at that moment. Its time on the "Try it" clock, if it is after the last change
     // of speed; otherwise the pass was already recorded when it happened.
-    if (Tk < SB.Tb - 1e-9) continue;
+    if (Tk < SB.Tb - 1e-9) { if (r && r.T < day - 1e-9) coneRec.at[k] = null; continue; }
     const tk = SB.tb + (Tk - SB.Tb) / SB.hps;
     coneRec.at[k] = { T: Tk, deg: bobAt(SANDBOX, tk).a * R2D };
   }
@@ -1727,7 +1731,7 @@ window.foucault = {
       if (o.sb) {
         mode = 'sandbox';
         Object.assign(SB, { lat: o.sb.lat, lon: o.sb.lon, view: o.sb.view, hps: o.sb.hps, t: o.sb.t,
-          start: 'rest', swingT0: 0, psi0: 90, Tb: 0, tb: 0, split: false, unroll: 0 });
+          start: 'rest', swingT0: 0, psi0: 90, Tb: 0, tb: 0, split: false, unroll: o.sb.unroll || 0 });
         syncSandboxUI();
       } else { mode = 'film'; ft = o.f; }
       document.body.classList.toggle('bare', !!o.bare);
