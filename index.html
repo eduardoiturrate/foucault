@@ -817,7 +817,10 @@ function coneInfo(lat, u) {
   const frame = x => { const f = frameN(x); const N = mir(f.N); return { E: mir(f.E), U: mir(f.U), north: s > 0 ? N : N.negate() }; };
   return { s, cyl, sp: s * sp, l, apexY, alpha, X, dMin, dMax, hasTip, map, frame };
 }
-function updateCone(lat, u, kShown, alpha) {
+// rec (optional): the swing direction left behind at each hour mark, in degrees from local east
+// toward north, or null where the pendulum has not passed yet. Without it, arrows 0..kShown show
+// the directions of the first day, as in the film.
+function updateCone(lat, u, kShown, alpha, rec) {
   const ci = coneInfo(lat, u), xAt = j => -ci.X / 2 + ci.X * j;
   const p = cone.geo.attributes.position;
   for (let i = 0; i <= NR; i++) for (let j = 0; j <= NB; j++) {
@@ -834,9 +837,11 @@ function updateCone(lat, u, kShown, alpha) {
     const x = xAt(k / 24), line = cone.hourLines[k];
     setLine(line, ci.map(ci.dMin, x), ci.map(ci.dMax, x));
     line.material.opacity = alpha * (k === 0 || k === 24 ? 0.95 : 0.22);
-    if (k > kShown) { cone.arrows[k].visible = false; continue; }
+    const recDeg = rec ? rec[k % 24] && rec[k % 24].deg : null;
+    if (rec ? recDeg == null : k > kShown) { cone.arrows[k].visible = false; continue; }
     const f = ci.frame(x);
-    const ang = (90 - 360 * ci.sp * k / 24) * D2R;      // swing direction, from east toward north
+    // swing direction, from east toward north
+    const ang = (rec ? recDeg : 90 - 360 * ci.sp * k / 24) * D2R;
     const dir = f.E.clone().multiplyScalar(Math.cos(ang)).addScaledVector(f.north, Math.sin(ang));
     const o = ci.map(0, x).addScaledVector(f.U, 0.08 * L).addScaledVector(dir, -L / 2);
     setArrow(cone.arrows[k], o, dir, L, alpha, 0.048 * L);
@@ -1143,7 +1148,7 @@ const SANDBOX = {
     else if (SB.view === 'cone' && coneOK) {
       const u = SB.unroll, cams = coneCams(SB.lat);
       out.cam = mixCam(cams.day, cams.flat, u); out.showSite = false; out.latCircle = true;
-      out.cone = { lat: SB.lat, u, k: 24, alpha: 1, edgeTags: u > 0.6, arcTag: u > 0.9 };
+      out.cone = { lat: SB.lat, u, k: 24, alpha: 1, edgeTags: u > 0.6, arcTag: u > 0.9, rec: coneRec.at };
     } else {
       out.cam = worldCam([0.001, s * 11, 7.5], [0, s * 0.8, 0], [0, s, 0]);
       out.inset = { cam: siteCam(B, sc, [0, 2.45, 0.001], [0, 0, 0], true), title: 'Seen from the floor' };
@@ -1454,6 +1459,27 @@ const insetFrame = $('insetFrame');
 const fmtClock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function setText(id, v) { const el = $(id); if (el._v !== v) { el.textContent = v; el._v = v; } }
 
+// The copies left behind on the cone in "Try it". at[k]: {T, deg} for hour mark k (0..23).
+const coneRec = { at: new Array(24).fill(null), lat: null, lastT: -1, startT: 0 };
+function recordCone() {
+  const T = SANDBOX.T(SB.t), H = SID / 24;
+  if (SB.lat !== coneRec.lat || T < coneRec.lastT) {           // new latitude or a restart: start again
+    coneRec.at.fill(null); coneRec.lat = SB.lat; coneRec.startT = T;
+  }
+  coneRec.lastT = T;
+  for (let k = 0; k < 24; k++) {
+    // the last time the pendulum was at hour mark k
+    const Tk = Math.floor((T - k * H) / SID) * SID + k * H;
+    const r = coneRec.at[k];
+    if (Tk < coneRec.startT - 1e-9 || (r && r.T >= Tk - 1e-9)) continue;
+    // The swing at that moment. Its time on the "Try it" clock, if it is after the last change
+    // of speed; otherwise the pass was already recorded when it happened.
+    if (Tk < SB.Tb - 1e-9) continue;
+    const tk = SB.tb + (Tk - SB.Tb) / SB.hps;
+    coneRec.at[k] = { T: Tk, deg: bobAt(SANDBOX, tk).a * R2D };
+  }
+}
+
 function draw() {
   const { ci, ch, t } = current();
   const lat = ch.lat(t), T = ch.T(t), theta = TAU * T / SID;
@@ -1538,10 +1564,13 @@ function draw() {
     aOmega.visible = aVert.visible = aHoriz.visible = dash1.visible = dash2.visible = ringV.visible = ringH.visible = false;
   }
 
+  // "Try it": every hour mark keeps a copy of the swing direction from the last time the pendulum
+  // passed it, so the arrows on the cone always show the last 24 hours.
+  if (ch.sandbox) recordCone();
   // Cone
   if (S.cone) {
     cone.group.visible = true;
-    const ci = updateCone(S.cone.lat, S.cone.u, S.cone.k, S.cone.alpha);
+    const ci = updateCone(S.cone.lat, S.cone.u, S.cone.k, S.cone.alpha, S.cone.rec);
     const turn = (360 * Math.abs(ci.sp)).toFixed(0);
     if (S.cone.arcTag) {
       const txt = ci.cyl ? '0°: the two edges are parallel' : `${turn}° = 360° × sin ${Math.abs(S.cone.lat).toFixed(2)}°`;
@@ -1662,6 +1691,8 @@ window.foucault = {
     return { simulated: ch.P(hours) * R2D, expected: 360 * Math.sin(latDeg * D2R) * hours / SID };
   },
   coneAngle(latDeg) { return coneInfo(latDeg, 1).alpha * R2D; },
+  // The copies on the cone in "Try it": hour mark, Earth hours, direction in degrees.
+  coneRecord: () => coneRec.at.map((r, k) => r && [k, +r.T.toFixed(2), +r.deg.toFixed(1)]),
   // Every text the voice reads, in film order. Input for tools/make-narration.py.
   captions() {
     const out = [];
