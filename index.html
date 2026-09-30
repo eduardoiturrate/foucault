@@ -812,13 +812,37 @@ function coneInfo(lat, u) {
     frameN = x => { const E = V(-Math.cos(x / Rb), 0, Math.sin(x / Rb)), N = V(0, 1, 0); return { E, N, U: E.clone().cross(N) }; };
   } else {
     // psi is the half-angle of the cone: the latitude when rolled up, 90° when flat.
-    const psi = pa + (Math.PI / 2 - pa) * k, sps = Math.sin(psi), cps = Math.cos(psi), ay = R / sp;
-    mapN = (d, x) => { const r = l - d, a = Lmid + x / l / sps; return V(r * sps * Math.sin(a), ay - r * cps, r * sps * Math.cos(a)); };
-    frameN = x => {
-      const a = Lmid + x / l / sps;
-      const E = V(Math.cos(a), 0, -Math.sin(a)), N = V(-sps * Math.sin(a), cps, -sps * Math.cos(a));
-      return { E, N, U: E.clone().cross(N) };
+    // The cone opens around its tip, so the flat sheet lies level with the tip.
+    const ay = R / sp;
+    const build = psi => {
+      const sps = Math.sin(psi), cps = Math.cos(psi);
+      return {
+        mapN: (d, x) => { const r = l - d, a = Lmid + x / l / sps; return V(r * sps * Math.sin(a), ay - r * cps, r * sps * Math.cos(a)); },
+        frameN: x => {
+          const a = Lmid + x / l / sps;
+          const E = V(Math.cos(a), 0, -Math.sin(a)), N = V(-sps * Math.sin(a), cps, -sps * Math.cos(a));
+          return { E, N, U: E.clone().cross(N) };
+        }
+      };
     };
+    const open = build(pa + (Math.PI / 2 - pa) * k);
+    mapN = open.mapN; frameN = open.frameN;
+    // Near the Equator the tip is very far away (about 11 Earth radii at 5°), so a sheet level with
+    // the tip would be far from the Earth. There, move the opening cone rigidly so that the line
+    // where it touches the Earth in front (x = 0) stays in place, as the cylinder does at 0°: the
+    // flat sheet then stays against the Earth, and becomes the cylinder's strip at 0°.
+    // Fully up to 12°, not at all from 30° (Paris and the film are unchanged), a blend between.
+    const w = 1 - smooth(clamp((Math.abs(lat) - 12) / 18, 0, 1));
+    if (w > 0 && k > 0) {
+      const rolled = build(pa), P0 = rolled.mapN(0, 0), F0 = rolled.frameN(0), Pu = mapN(0, 0), Fu = frameN(0);
+      const M = new THREE.Matrix4().makeBasis(F0.E, F0.N, F0.U)
+        .multiply(new THREE.Matrix4().makeBasis(Fu.E, Fu.N, Fu.U).transpose());
+      const q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromRotationMatrix(M), w);
+      const to = Pu.clone().lerp(P0, w);
+      const mapO = mapN, frameO = frameN;
+      mapN = (d, x) => mapO(d, x).sub(Pu).applyQuaternion(q).add(to);
+      frameN = x => { const f = frameO(x); return { E: f.E.applyQuaternion(q), N: f.N.applyQuaternion(q), U: f.U.applyQuaternion(q) }; };
+    }
   }
   const mir = v => { if (s < 0) v.y = -v.y; return v; };
   const map = (d, x) => mir(mapN(d, x));
@@ -1628,7 +1652,7 @@ function draw() {
     cone.group.visible = true;
     const ci = updateCone(S.cone.lat, S.cone.u, S.cone.k, S.cone.alpha, S.cone.rec, S.cone.prevRec);
     if (S.cone.prevRec && cone.prev.mesh.visible && S.cone.u > 0.6) {
-      tag('today', 'today', ci.map(0.45 * ci.dMax, 0), 'brass');
+      tag('today', 'today', ci.map(0.45 * ci.dMax, ci.X / 4), 'brass');   // not at x = 0, where the angle label is
       tag('yday', 'yesterday', ci.map(0.45 * ci.dMax, -ci.X));
     }
     const turn = (360 * Math.abs(ci.sp)).toFixed(0);
@@ -1751,6 +1775,12 @@ window.foucault = {
     return { simulated: ch.P(hours) * R2D, expected: 360 * Math.sin(latDeg * D2R) * hours / SID };
   },
   coneAngle(latDeg) { return coneInfo(latDeg, 1).alpha * R2D; },
+  // Where the flat sheet's middle is (distance from the Earth's centre, in Earth radii), and
+  // how far the camera for the flat sheet is from the Earth's centre.
+  coneFlat(latDeg) {
+    const c = coneInfo(latDeg, 1), cam = coneCams(latDeg).flat;
+    return { sheet: +(c.map(0, 0).length() / R).toFixed(2), camera: +(cam.pos.length() / R).toFixed(2) };
+  },
   // The copies on the cone in "Try it": hour mark, Earth hours, direction in degrees.
   coneRecord: () => ({ today: coneRec.at.map((r, k) => r && [k, +r.T.toFixed(3), +r.deg.toFixed(2)]),
                        yesterday: coneRec.prev.map((r, k) => r && [k, +r.T.toFixed(3), +r.deg.toFixed(2)]) }),
