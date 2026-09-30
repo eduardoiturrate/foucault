@@ -1,3 +1,9 @@
 narration-samples/
 video/
 __pycache__/
+# Video and narration tools, kept only on this computer
+tools/
+publish/
+geo-data-hd.js
+narration/captions.json
+narration-video/
