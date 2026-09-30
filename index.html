@@ -613,7 +613,9 @@ scene.add(new THREE.AmbientLight(0x8a93ad, 0.62));
 const head = new THREE.DirectionalLight(0xffffff, 0.85); scene.add(head); scene.add(head.target);
 const fill = new THREE.DirectionalLight(0xfff1dc, 0.25); fill.position.set(6, 9, 7); scene.add(fill);
 
-// Stars, fixed in space
+// Stars, fixed in space. The star sphere is kept centred on the camera, so the stars behave as if
+// infinitely far away: they turn on screen only when the camera turns, never when it only moves.
+const starField = new THREE.Group(); scene.add(starField);
 (function makeStars() {
   const rnd = mulberry(7);
   function layer(n, size, opacity) {
@@ -623,7 +625,7 @@ const fill = new THREE.DirectionalLight(0xfff1dc, 0.25); fill.position.set(6, 9,
       pos.set([r * Math.cos(a) * 250, z * 250, r * Math.sin(a) * 250], i * 3);
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xdfe6ff, size, sizeAttenuation: false, transparent: true, opacity, depthWrite: false })));
+    starField.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xdfe6ff, size, sizeAttenuation: false, transparent: true, opacity, depthWrite: false })));
   }
   layer(2600, 1.3, 0.55); layer(420, 2.2, 0.85); layer(60, 3.2, 0.95);
 })();
@@ -1012,7 +1014,10 @@ CH.push(def({
       frame(t, B) {
         const sc = 0.8;
         const off = B0.e.clone().multiplyScalar(2.5 * sc).addScaledVector(B0.u, 2.3 * sc).addScaledVector(B0.s, 2.7 * sc);
-        const follow = { pos: B.pos.clone().add(off), target: loc(B, sc, 0, 0.5, 0), up: B0.u.clone() };
+        // Follows Paris without turning (the direction of view stays fixed in space, like the red
+        // plane), so the stars stay still and the floor is seen to tilt.
+        const aim = B.pos.clone().addScaledVector(B0.u, 0.5 * sc);
+        const follow = { pos: aim.clone().add(off).addScaledVector(B0.u, -0.5 * sc), target: aim, up: B0.u.clone() };
         const near = siteCam(B, sc, [2.4, 1.15, 2.4], [0, 0.5, 0]);
         return { scale: sc, ghost: t >= b(1) - 0.3 ? { t: 0 } : null, ghostTag: t >= b(3) - 0.5,
           cam: mixCam(follow, near, seg(t, b(4), b(4) + 3.5)) };
@@ -1565,6 +1570,7 @@ function draw() {
   // Render main view
   head.position.copy(camera.position); head.target.position.copy(S.cam.target);
   renderer.setViewport(0, 0, viewW, viewH); renderer.setScissorTest(false);
+  starField.position.copy(camera.position);
   renderer.render(scene, camera);
 
   // Inset view
@@ -1578,6 +1584,7 @@ function draw() {
     renderer.setScissorTest(true); renderer.setScissor(x, y, w, h); renderer.setViewport(x, y, w, h);
     // Earth's axis passes through the pendulum at the pole, right in front of this camera.
     const axisWas = axisGroup.visible; axisGroup.visible = false;
+    starField.position.copy(insetCam.position);
     renderer.render(scene, insetCam); renderer.setScissorTest(false);
     axisGroup.visible = axisWas;
   } else if (!insetFrame.hidden) { insetFrame.hidden = true; document.body.classList.remove('hasInset'); }
@@ -1671,18 +1678,21 @@ window.foucault = {
     }))),
     // text: the caption to show in this frame (with ?captions), or '' for none.
     clipFor: text => fnv1a(spoken(text)),
+    // The main camera's orientation in space, and the Earth's hours at this moment (for checks).
+    camState: () => ({ q: camera.quaternion.toArray(), T: current().ch.T(current().t) }),
     // One frame. o.f: film time. o.sb: instead of film time, the "Try it" mode with these settings
-    // ({lat, lon, view, hps, t}). o.vt: video time; the camera drifts slowly with it, so the picture
-    // is never still. o.text: caption. o.hook: big text of a Short's first seconds. o.card: title or
+    // ({lat, lon, view, hps, t}). o.vt: video time; the camera moves slowly in and out with it, so
+    // the picture is never still. o.text: caption. o.hook: big text of a Short's first seconds. o.card: title or
     // end card ({title, sub, foot, a}). o.progress: 0 to 1, or none. o.eyebrow: text above the
     // chapter title. o.chap: chapter name for a few seconds ({num, title, a}). o.bare: no titles
     // or panels. o.snap: keep this picture for a cross-dissolve. o.xf: how much of the kept
     // picture still shows (0 to 1).
     async frame(o) {
       const w = TAU * (o.vt || 0);
-      user.yaw = 0.09 * Math.sin(w / 23);              // about ±5°
-      user.pitch = 0.035 * Math.sin(w / 31 + 1);       // about ±2°
-      user.zoom = user.zoomTo = 1 + 0.03 * Math.sin(w / 19 + 2);
+      // Only in and out along the line of sight, never turning: a turning camera would make the
+      // stars move, and the film says the stars do not move.
+      user.yaw = 0; user.pitch = 0;
+      user.zoom = user.zoomTo = 1 + 0.04 * Math.sin(w / 19 + 2);
       if (o.sb) {
         mode = 'sandbox';
         Object.assign(SB, { lat: o.sb.lat, lon: o.sb.lon, view: o.sb.view, hps: o.sb.hps, t: o.sb.t,
