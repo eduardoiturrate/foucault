@@ -85,6 +85,41 @@
 
   /* ---------- labels in the 3D scene ---------- */
   #tags { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  /* Video only: the last picture of a chapter, fading out over the first picture of the next. */
+  #xfade { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  /* Video only: progress bar, big hook text for the first seconds of a Short, and title or end cards. */
+  #vprog { position: fixed; left: 0; top: 0; height: 5px; background: var(--brass); z-index: 4; }
+  #vhook { position: fixed; left: 18px; right: 18px; top: 27vh; text-align: center; pointer-events: none; z-index: 4;
+    font: 800 38px/1.12 var(--sans); color: #fff; text-wrap: balance;
+    text-shadow: 0 3px 18px rgba(0, 0, 0, .95), 0 0 3px #000; }
+  #vhook:empty { display: none; }
+  #vcard { position: fixed; inset: 0; z-index: 5; pointer-events: none; display: grid; place-content: center; gap: 16px;
+    padding: 24px; text-align: center; background: radial-gradient(ellipse at center, rgba(5, 8, 15, .5), rgba(5, 8, 15, .93)); }
+  #vcTitle { font: 560 clamp(32px, 5vw, 68px)/1.08 var(--serif); color: var(--text); text-wrap: balance; }
+  #vcSub { font-size: clamp(17px, 2vw, 26px); line-height: 1.35; color: #cfd6e4; text-wrap: balance; }
+  #vcFoot { font: 600 clamp(15px, 1.5vw, 22px)/1.3 var(--mono); color: var(--brass); }
+  #vcTitle:empty, #vcSub:empty, #vcFoot:empty { display: none; }
+  /* Horizontal video: the numbers panel stays, larger, to show the real numbers. The titles and the
+     chapter buttons go; a chapter name shows for a few seconds at the start of each chapter. */
+  body.video.wide #filmTitle, body.video.wide #chTitle, body.video.wide #chips, body.video.wide #filmTag { display: none !important; }
+  body.video.wide #hud { width: 470px; top: 22px; left: 22px; }
+  body.video.wide #readout { font-size: 17px; line-height: 1.55; padding: 14px 18px; column-gap: 24px; }
+  body.video.wide #readout dt { white-space: nowrap; }
+  body.video.wide #readout .note { font-size: 13.5px; }
+  #vchap { position: fixed; left: 56px; bottom: 64px; z-index: 4; pointer-events: none;
+    padding: 14px 22px 16px; border-left: 4px solid var(--brass); background: rgba(5, 8, 15, .72); }
+  #vchNum { font: 600 15px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--brass); }
+  #vchTitle { margin-top: 8px; font: 560 40px/1.1 var(--serif); color: var(--text); }
+  /* Vertical video: keep clear of the side edges, which TikTok cuts off on tall phones. */
+  body.video:not(.wide) #hud { left: 36px; width: calc(100vw - 72px); }
+  body.video:not(.wide).hasInset #hud { width: calc(100vw - 72px - 36vw - 10px); }
+  body.video:not(.wide) #insetFrame { right: 36px; }
+  body.video:not(.wide) #vhook { left: 36px; right: 36px; }
+  body.video:not(.wide) #vcard { padding: 24px 40px; }
+  /* A Short's hook: the big text alone, without the small window or the labels. */
+  body.hooking #insetFrame, body.hooking #tags { visibility: hidden; }
+  /* Video only: a clean picture with no titles or panels (the cold open of the film). */
+  body.bare #hud, body.bare #filmTitle, body.bare #bottom, body.bare #insetFrame, body.bare #tags { visibility: hidden; }
   .tag {
     position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 13px/1.2 var(--mono);
     padding: 3px 7px; border-radius: 4px; background: rgba(5,8,15,.72); color: var(--text);
@@ -212,7 +247,7 @@
   body.video:not(.wide):not(.started) #hudSub { font-size: 17px; }
   /* Vertical video with the captions in the picture (index.html?video&captions): one sentence at a
      time, above the bottom part that the apps cover, and clear of their buttons on the right. */
-  body.video.captions:not(.wide) #bottom { display: grid; bottom: 20vh; padding: 0 64px 0 12px; }
+  body.video.captions:not(.wide) #bottom { display: grid; bottom: 20vh; padding: 0 36px; }
   body.video.captions #chips, body.video.captions #transport, body.video.captions #sandbox, body.video.captions #capMeta { display: none; }
   body.video.captions #caption { width: 100%; padding: 10px 14px; background: rgba(5, 8, 15, .8); }
   body.video.captions #capText { font-size: 19px; font-weight: 700; line-height: 1.4; min-height: 0; text-align: center; text-wrap: balance; }
@@ -255,7 +290,12 @@
 <body>
 
 <canvas id="c" aria-label="3D animation of a Foucault pendulum on the Earth"></canvas>
+<img id="xfade" alt="" hidden>
 <div id="tags"></div>
+<div id="vprog" hidden></div>
+<div id="vhook"></div>
+<div id="vchap" hidden><div id="vchNum"></div><div id="vchTitle"></div></div>
+<div id="vcard" hidden><div id="vcTitle"></div><div id="vcSub"></div><div id="vcFoot"></div></div>
 <header id="filmTitle">
   <h2>Foucault Between the Poles</h2>
   <p>Why the swing turns 360° × sin(latitude) per day</p>
@@ -264,7 +304,7 @@
 
 <div id="hud">
   <div>
-    <div id="filmTag"><div class="eyebrow">Foucault Between the Poles</div><p id="hudSub">Why the swing turns 360° × sin(latitude) per day</p></div>
+    <div id="filmTag"><div class="eyebrow" id="filmName">Foucault Between the Poles</div><p id="hudSub">Why the swing turns 360° × sin(latitude) per day</p></div>
     <h1 id="chTitle">The question</h1>
   </div>
   <dl id="readout">
@@ -447,7 +487,9 @@ function noise3(x, y, z) {
   const x01 = lerp(c(0,0,1), c(1,0,1), u), x11 = lerp(c(0,1,1), c(1,1,1), u);
   return lerp(lerp(x00, x10, v), lerp(x01, x11, v), w);
 }
-// Real coastlines and borders (Natural Earth 1:50m, loaded from geo-data.js).
+// Real coastlines and borders (Natural Earth 1:50m, loaded from geo-data.js). The video renderer
+// loads the more detailed 1:10m data (geo-data-hd.js) into GEO_LAND_HD and GEO_BORDERS_HD, and the
+// map is then drawn at twice the size.
 // The texture is aligned so that geographic longitude L sits at mesh azimuth L.
 function decodePaths(b64) {
   const bin = atob(b64), n = bin.length >> 1, paths = [];
@@ -460,7 +502,7 @@ function decodePaths(b64) {
   return paths;
 }
 function earthTexture() {
-  const W = 4096, Hh = 2048;
+  const HD = !!window.GEO_LAND_HD, W = HD ? 8192 : 4096, Hh = W / 2, lw = HD ? 1.5 : 1;
   // First draw the map with longitude -180 at the left edge, then shift it into place.
   const m = document.createElement('canvas'); m.width = W; m.height = Hh;
   const g = m.getContext('2d');
@@ -492,7 +534,7 @@ function earthTexture() {
     }
   }
   const land = new Path2D();
-  for (const p of decodePaths(GEO_LAND)) addPath(land, p, true);
+  for (const p of decodePaths(HD ? window.GEO_LAND_HD : GEO_LAND)) addPath(land, p, true);
   // Land colour by latitude: ice near the poles, green in the middle, drier olive in the subtropics.
   const lg = g.createLinearGradient(0, 0, 0, Hh);
   const stops = [[90, '#dfe7ee'], [72, '#cdd8d6'], [62, '#6f8a68'], [45, '#4f7c4c'], [30, '#8c8a5a'], [18, '#7d8650'],
@@ -500,7 +542,7 @@ function earthTexture() {
   for (const [lat, col] of stops) lg.addColorStop((90 - lat) / 180, col);
   g.fillStyle = lg; g.fill(land, 'evenodd');
   // Soft relief: low-resolution noise, only on land.
-  const nw = 512, nh = 256, nc = document.createElement('canvas'); nc.width = nw; nc.height = nh;
+  const nw = HD ? 1024 : 512, nh = nw / 2, nc = document.createElement('canvas'); nc.width = nw; nc.height = nh;
   const ng = nc.getContext('2d'), img = ng.createImageData(nw, nh);
   for (let j = 0; j < nh; j++) {
     const lat = (0.5 - (j + 0.5) / nh) * Math.PI;
@@ -517,15 +559,15 @@ function earthTexture() {
   g.save(); g.clip(land, 'evenodd'); g.globalCompositeOperation = 'soft-light'; g.drawImage(nc, 0, 0, W, Hh); g.restore();
   // Coastlines and country borders
   g.lineJoin = 'round';
-  g.strokeStyle = 'rgba(210,232,255,0.45)'; g.lineWidth = 1.4; g.stroke(land);
+  g.strokeStyle = 'rgba(210,232,255,0.45)'; g.lineWidth = 1.4 * lw; g.stroke(land);
   const borders = new Path2D();
-  for (const p of decodePaths(GEO_BORDERS)) addPath(borders, p, false);
-  g.strokeStyle = 'rgba(255,240,205,0.42)'; g.lineWidth = 1.3; g.stroke(borders);
+  for (const p of decodePaths(HD ? window.GEO_BORDERS_HD : GEO_BORDERS)) addPath(borders, p, false);
+  g.strokeStyle = 'rgba(255,240,205,0.42)'; g.lineWidth = 1.3 * lw; g.stroke(borders);
   // Grid every 15°, Equator in gold
-  g.strokeStyle = 'rgba(205,222,255,0.16)'; g.lineWidth = 2;
+  g.strokeStyle = 'rgba(205,222,255,0.16)'; g.lineWidth = 2 * W / 4096;
   for (let d = -75; d <= 75; d += 15) { if (d === 0) continue; g.beginPath(); g.moveTo(0, Yp(d)); g.lineTo(W, Yp(d)); g.stroke(); }
   for (let d = -180; d < 180; d += 15) { g.beginPath(); g.moveTo(X(d), 0); g.lineTo(X(d), Hh); g.stroke(); }
-  g.strokeStyle = 'rgba(240,200,120,0.75)'; g.lineWidth = 5;
+  g.strokeStyle = 'rgba(240,200,120,0.75)'; g.lineWidth = 5 * W / 4096;
   g.beginPath(); g.moveTo(0, Hh / 2); g.lineTo(W, Hh / 2); g.stroke();
   // Three.js puts texture u = 0 at mesh azimuth -90°. Shift so longitude L lands at azimuth L.
   const c = document.createElement('canvas'); c.width = W; c.height = Hh;
@@ -859,6 +901,15 @@ function def(spec) {
   for (const bt of beats) {
     const words = bt.text.split(/\s+/).length;
     bt.dur = bt.dur || Math.max(4.5, words / 2.2 + 1.8);
+    // In a rendered video (tools/render-video.mjs), a step lasts as long as its voice clip plus a
+    // short pause, but at least a share of its reading time, so that pictures which need time
+    // (a turning Earth, an unrolling cone) still get it.
+    const V = window.FOUCAULT_VIDEO;
+    if (V) {
+      const phoneNow = matchMedia('(max-width: 760px), (max-height: 500px)').matches;
+      const voice = V.clips[fnv1a(spoken((phoneNow && bt.phone) || bt.text))];
+      if (voice) bt.dur = Math.max(voice + V.gap, bt.dur * V.minShare);
+    }
     starts.push(starts[starts.length - 1] + bt.dur);
   }
   const b = i => starts[clamp(i, 0, starts.length - 1)];
@@ -1517,7 +1568,7 @@ function draw() {
   renderer.render(scene, camera);
 
   // Inset view
-  if (S.inset) {
+  if (S.inset && !document.body.classList.contains('bare') && !document.body.classList.contains('hooking')) {
     if (insetFrame.hidden) { insetFrame.hidden = false; document.body.classList.add('hasInset'); }
     setText('insetTitle', S.inset.title);
     const r = insetFrame.getBoundingClientRect();
@@ -1619,9 +1670,43 @@ window.foucault = {
       text: shown(b), clip: fnv1a(spoken(shown(b)))
     }))),
     // text: the caption to show in this frame (with ?captions), or '' for none.
-    frame(f, dt, text) {
-      mode = 'film'; playing = false; ft = f; fitCamera(dt); draw();
-      const ct = $('capText'); if (text != null && ct.textContent !== text) ct.textContent = text;
+    clipFor: text => fnv1a(spoken(text)),
+    // One frame. o.f: film time. o.sb: instead of film time, the "Try it" mode with these settings
+    // ({lat, lon, view, hps, t}). o.vt: video time; the camera drifts slowly with it, so the picture
+    // is never still. o.text: caption. o.hook: big text of a Short's first seconds. o.card: title or
+    // end card ({title, sub, foot, a}). o.progress: 0 to 1, or none. o.eyebrow: text above the
+    // chapter title. o.chap: chapter name for a few seconds ({num, title, a}). o.bare: no titles
+    // or panels. o.snap: keep this picture for a cross-dissolve. o.xf: how much of the kept
+    // picture still shows (0 to 1).
+    async frame(o) {
+      const w = TAU * (o.vt || 0);
+      user.yaw = 0.09 * Math.sin(w / 23);              // about ±5°
+      user.pitch = 0.035 * Math.sin(w / 31 + 1);       // about ±2°
+      user.zoom = user.zoomTo = 1 + 0.03 * Math.sin(w / 19 + 2);
+      if (o.sb) {
+        mode = 'sandbox';
+        Object.assign(SB, { lat: o.sb.lat, lon: o.sb.lon, view: o.sb.view, hps: o.sb.hps, t: o.sb.t,
+          start: 'rest', swingT0: 0, psi0: 90, Tb: 0, tb: 0, split: false, unroll: 0 });
+        syncSandboxUI();
+      } else { mode = 'film'; ft = o.f; }
+      document.body.classList.toggle('bare', !!o.bare);
+      document.body.classList.toggle('hooking', !!o.hook);
+      playing = false; fitCamera(o.dt); draw();
+      const ct = $('capText'); if (o.text != null && ct.textContent !== o.text) ct.textContent = o.text;
+      setText('vhook', o.hook || '');
+      const card = $('vcard'); card.hidden = !o.card;
+      if (o.card) {
+        setText('vcTitle', o.card.title || ''); setText('vcSub', o.card.sub || ''); setText('vcFoot', o.card.foot || '');
+        card.style.opacity = o.card.a;
+      }
+      const ch = $('vchap'); ch.hidden = !o.chap;
+      if (o.chap) { setText('vchNum', o.chap.num); setText('vchTitle', o.chap.title); ch.style.opacity = o.chap.a; }
+      $('vprog').hidden = o.progress == null; if (o.progress != null) $('vprog').style.width = (100 * o.progress).toFixed(2) + '%';
+      if (o.eyebrow) setText('filmName', o.eyebrow);
+      const img = $('xfade');
+      if (o.snap) { img.src = renderer.domElement.toDataURL('image/jpeg', 0.95); await img.decode(); }
+      img.hidden = !(o.xf > 0); img.style.opacity = o.xf || 0;
+      $('tags').style.opacity = 1 - (o.xf || 0);
     }
   }
 };
